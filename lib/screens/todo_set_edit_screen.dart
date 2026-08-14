@@ -1,0 +1,245 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+
+import '../models/schedule.dart';
+import '../models/todo_item.dart';
+import '../models/todo_set.dart';
+import '../providers/repository_providers.dart';
+import '../utils/schedule_format.dart';
+
+const _uuid = Uuid();
+
+class _EditableItem {
+  _EditableItem({required this.id, required String label}) : controller = TextEditingController(text: label);
+
+  final String id;
+  final TextEditingController controller;
+
+  void dispose() => controller.dispose();
+}
+
+class TodoSetEditScreen extends ConsumerStatefulWidget {
+  const TodoSetEditScreen({super.key, required this.todoSetId});
+
+  /// Null when creating a new TodoSet.
+  final String? todoSetId;
+
+  @override
+  ConsumerState<TodoSetEditScreen> createState() => _TodoSetEditScreenState();
+}
+
+class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
+  late final TextEditingController _nameController;
+  late final List<_EditableItem> _items;
+  late int _hour;
+  late int _minute;
+  late Set<int> _repeatDays;
+  late bool _isEnabled;
+  late final DateTime _createdAt;
+
+  bool get _isEditing => widget.todoSetId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing =
+        widget.todoSetId == null ? null : ref.read(todoSetRepositoryProvider).getById(widget.todoSetId!);
+
+    _nameController = TextEditingController(text: existing?.name ?? '');
+    _items = (existing?.sortedItems ?? const <TodoItem>[])
+        .map((item) => _EditableItem(id: item.id, label: item.label))
+        .toList();
+    _hour = existing?.schedule.hour ?? 7;
+    _minute = existing?.schedule.minute ?? 0;
+    _repeatDays = existing?.schedule.repeatDays.toSet() ?? {1, 2, 3, 4, 5, 6, 7};
+    _isEnabled = existing?.isEnabled ?? true;
+    _createdAt = existing?.createdAt ?? DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    for (final item in _items) {
+      item.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addItem() {
+    setState(() => _items.add(_EditableItem(id: _uuid.v4(), label: '')));
+  }
+
+  void _removeItem(int index) {
+    setState(() => _items.removeAt(index).dispose());
+  }
+
+  void _reorderItems(int oldIndex, int newIndex) {
+    setState(() {
+      final item = _items.removeAt(oldIndex);
+      _items.insert(newIndex, item);
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _hour, minute: _minute),
+    );
+    if (picked != null) {
+      setState(() {
+        _hour = picked.hour;
+        _minute = picked.minute;
+      });
+    }
+  }
+
+  void _toggleWeekday(int weekday) {
+    setState(() {
+      if (_repeatDays.contains(weekday)) {
+        _repeatDays.remove(weekday);
+      } else {
+        _repeatDays.add(weekday);
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('セット名を入力してください')));
+      return;
+    }
+
+    final labeledItems = <TodoItem>[];
+    for (var i = 0; i < _items.length; i++) {
+      final label = _items[i].controller.text.trim();
+      if (label.isEmpty) continue;
+      labeledItems.add(TodoItem(id: _items[i].id, label: label, sortOrder: i));
+    }
+
+    final todoSet = TodoSet(
+      id: widget.todoSetId ?? _uuid.v4(),
+      name: name,
+      items: labeledItems,
+      schedule: Schedule(hour: _hour, minute: _minute, repeatDays: _repeatDays.toList()..sort()),
+      isEnabled: _isEnabled,
+      createdAt: _createdAt,
+      updatedAt: DateTime.now(),
+    );
+
+    await ref.read(todoSetRepositoryProvider).save(todoSet);
+    await ref.read(notificationServiceProvider).scheduleForTodoSet(todoSet);
+
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('このセットを削除しますか？'),
+        content: const Text('通知の予約も解除されます。この操作は取り消せません。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('キャンセル')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('削除')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await ref.read(notificationServiceProvider).cancelForTodoSet(widget.todoSetId!);
+    await ref.read(todoSetRepositoryProvider).delete(widget.todoSetId!);
+
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? 'セットを編集' : 'セットを作成'),
+        actions: [
+          if (_isEditing)
+            IconButton(icon: const Icon(Icons.delete_outline), tooltip: '削除', onPressed: _confirmDelete),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: 'セット名', hintText: '例: 保育園'),
+          ),
+          const SizedBox(height: 24),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('通知時刻'),
+            trailing: Text(
+              formatTime(_hour, _minute),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            onTap: _pickTime,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final entry in weekdayLabels.entries)
+                FilterChip(
+                  label: Text(entry.value),
+                  selected: _repeatDays.contains(entry.key),
+                  onSelected: (_) => _toggleWeekday(entry.key),
+                ),
+            ],
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('通知を有効にする'),
+            value: _isEnabled,
+            onChanged: (value) => setState(() => _isEnabled = value),
+          ),
+          const Divider(height: 32),
+          Text('Todo項目', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _items.length,
+            onReorderItem: _reorderItems,
+            itemBuilder: (context, index) {
+              final item = _items[index];
+              return Padding(
+                key: ValueKey(item.id),
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.drag_handle),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: item.controller,
+                        decoration: const InputDecoration(hintText: '例: 連絡帳'),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => _removeItem(index),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          TextButton.icon(
+            onPressed: _addItem,
+            icon: const Icon(Icons.add),
+            label: const Text('項目を追加'),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(onPressed: _save, child: const Text('保存')),
+        ],
+      ),
+    );
+  }
+}
