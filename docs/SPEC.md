@@ -111,8 +111,9 @@
 ## 5. 永続化層 (`lib/data/`)
 
 - `hive_boxes.dart`: `Hive.initFlutter()` の実行、4つの `TypeAdapter` の登録、
-  `todo_sets` ボックス（`Box<TodoSet>`）と `daily_checklists` ボックス（`Box<DailyChecklist>`）
-  のオープンを行う（`initHive()`、`main()` から起動時に1回呼ばれる）。
+  `todo_sets` ボックス（`Box<TodoSet>`）・`daily_checklists` ボックス（`Box<DailyChecklist>`）・
+  `settings` ボックス（型なし、アプリ全体の設定値用）のオープンを行う
+  （`initHive()`、`main()` から起動時に1回呼ばれる）。
 - `todo_set_repository.dart` (`TodoSetRepository`): `todo_sets` ボックスへのCRUD。
   一覧は `createdAt` 昇順で返す。
 - `checklist_repository.dart` (`ChecklistRepository`): `daily_checklists` ボックスへのCRUD。
@@ -133,6 +134,9 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
   変更を監視。呼び出し前に `ChecklistRepository.getOrCreate` でレコードが存在している必要がある。
 - `todoSetRepositoryProvider` / `checklistRepositoryProvider` / `notificationServiceProvider`:
   各サービス・リポジトリのシングルトン提供。
+- `themeModeProvider`（`lib/providers/theme_providers.dart`）: ユーザーが選択した表示テーマ
+  （`ThemeMode.system` / `light` / `dark`）を保持する `NotifierProvider`。`settings` ボックスの
+  キー `themeMode` にインデックス値として永続化し、アプリ再起動後も選択が復元される。
 
 ## 7. 通知実装 (`lib/notifications/notification_service.dart`)
 
@@ -179,6 +183,9 @@ TodoSetListScreen（一覧・起点）
 - 各行に「本日完了済みか（アイコン）」「スケジュール概要 ・ 項目数」「有効/無効スイッチ」
   「編集ボタン」を表示。行タップでチェックリスト画面へ。
 - 右下のFABから新規作成画面へ遷移。
+- AppBarのアイコンボタン（現在のテーマに応じて表示が変わる）から表示テーマを選択できる
+  （「端末の設定に従う」「ライト」「ダーク」）。選択は `themeModeProvider` を通じて即時に
+  アプリ全体へ反映され、Hiveに永続化される。
 
 ### 8.3 `TodoSetEditScreen`
 - `todoSetId == null` なら新規作成、それ以外は既存データを読み込んで編集。

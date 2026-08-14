@@ -7,6 +7,7 @@ import '../models/todo_set.dart';
 
 const String todoSetBoxName = 'todo_sets';
 const String dailyChecklistBoxName = 'daily_checklists';
+const String settingsBoxName = 'settings';
 
 Future<void> initHive() async {
   await Hive.initFlutter();
@@ -18,4 +19,5 @@ Future<void> initHive() async {
 
   await Hive.openBox<TodoSet>(todoSetBoxName);
   await Hive.openBox<DailyChecklist>(dailyChecklistBoxName);
+  await Hive.openBox(settingsBoxName);
 }

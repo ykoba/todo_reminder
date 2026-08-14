@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/todo_set.dart';
 import '../providers/checklist_providers.dart';
 import '../providers/repository_providers.dart';
+import '../providers/theme_providers.dart';
 import '../providers/todo_set_providers.dart';
 import '../utils/date_key.dart';
 import '../utils/schedule_format.dart';
@@ -16,9 +17,28 @@ class TodoSetListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final todoSetsAsync = ref.watch(todoSetListProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Todoリマインダー')),
+      appBar: AppBar(
+        title: const Text('Todoリマインダー'),
+        actions: [
+          PopupMenuButton<ThemeMode>(
+            icon: Icon(switch (themeMode) {
+              ThemeMode.light => Icons.light_mode_outlined,
+              ThemeMode.dark => Icons.dark_mode_outlined,
+              ThemeMode.system => Icons.brightness_auto_outlined,
+            }),
+            tooltip: '表示テーマ',
+            onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: ThemeMode.system, child: Text('端末の設定に従う')),
+              PopupMenuItem(value: ThemeMode.light, child: Text('ライト')),
+              PopupMenuItem(value: ThemeMode.dark, child: Text('ダーク')),
+            ],
+          ),
+        ],
+      ),
       body: todoSetsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Center(child: Text('読み込みに失敗しました: $error')),

@@ -26,6 +26,7 @@ class HiveTestHarness {
 
     await Hive.openBox<TodoSet>(todoSetBoxName);
     await Hive.openBox<DailyChecklist>(dailyChecklistBoxName);
+    await Hive.openBox(settingsBoxName);
   }
 
   Future<void> tearDown() async {

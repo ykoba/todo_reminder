@@ -101,6 +101,19 @@ void main() {
     expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
   });
 
+  testWidgets('theme menu defaults to following the system setting and offers all three options', (tester) async {
+    await pumpScreen(tester);
+
+    expect(find.byIcon(Icons.brightness_auto_outlined), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.brightness_auto_outlined));
+    await settle(tester);
+
+    expect(find.text('端末の設定に従う'), findsOneWidget);
+    expect(find.text('ライト'), findsOneWidget);
+    expect(find.text('ダーク'), findsOneWidget);
+  });
+
   testWidgets('tapping the FAB opens the create screen', (tester) async {
     await pumpScreen(tester);
 

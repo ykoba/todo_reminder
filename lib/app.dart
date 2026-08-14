@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers/repository_providers.dart';
+import 'providers/theme_providers.dart';
 import 'screens/checklist_screen.dart';
 import 'screens/todo_set_list_screen.dart';
 
@@ -56,6 +57,10 @@ class _MyAppState extends ConsumerState<MyApp> {
       navigatorKey: rootNavigatorKey,
       title: 'Todoリマインダー',
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple)),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
+      ),
+      themeMode: ref.watch(themeModeProvider),
       home: const TodoSetListScreen(),
     );
   }
