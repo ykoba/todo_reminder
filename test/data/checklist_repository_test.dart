@@ -73,6 +73,35 @@ void main() {
     expect(repository.get('set-1', '2026-01-01'), isNull);
   });
 
+  group('getAllForTodoSet', () {
+    test('returns an empty map when nothing has been recorded', () {
+      expect(repository.getAllForTodoSet('set-1'), isEmpty);
+    });
+
+    test('returns every recorded date for that todoSet, keyed by dateKey', () {
+      final todoSet = buildTodoSet(id: 'set-1');
+      repository.getOrCreate(todoSet, '2026-01-01');
+      repository.getOrCreate(todoSet, '2026-01-02');
+
+      final history = repository.getAllForTodoSet('set-1');
+
+      expect(history.keys.toSet(), {'2026-01-01', '2026-01-02'});
+      expect(history['2026-01-01']!.dateKey, '2026-01-01');
+    });
+
+    test('excludes records belonging to a different todoSet', () {
+      final setA = buildTodoSet(id: 'set-a');
+      final setB = buildTodoSet(id: 'set-b');
+      repository.getOrCreate(setA, '2026-01-01');
+      repository.getOrCreate(setB, '2026-01-01');
+
+      final history = repository.getAllForTodoSet('set-a');
+
+      expect(history.keys, ['2026-01-01']);
+      expect(history['2026-01-01']!.todoSetId, 'set-a');
+    });
+  });
+
   // toggleItem/setCompleted call HiveObject.save(), which requires the
   // object to already be attached to a box — so these tests build their
   // fixture through getOrCreate() rather than constructing a standalone

@@ -23,6 +23,7 @@ TodoSet buildTodoSet({
   bool isEnabled = true,
   DateTime? createdAt,
   DateTime? updatedAt,
+  int sortOrder = 0,
 }) {
   final createdAtOrDefault = createdAt ?? DateTime(2026, 1, 1);
   return TodoSet(
@@ -37,6 +38,7 @@ TodoSet buildTodoSet({
     isEnabled: isEnabled,
     createdAt: createdAtOrDefault,
     updatedAt: updatedAt ?? createdAtOrDefault,
+    sortOrder: sortOrder,
   );
 }
 

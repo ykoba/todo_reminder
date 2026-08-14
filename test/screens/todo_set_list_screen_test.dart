@@ -9,6 +9,7 @@ import 'package:todo_reminder/screens/todo_set_edit_screen.dart';
 import 'package:todo_reminder/screens/todo_set_list_screen.dart';
 import 'package:todo_reminder/notifications/notification_service.dart';
 import 'package:todo_reminder/utils/date_key.dart';
+import 'package:todo_reminder/utils/schedule_format.dart';
 
 import '../support/fixtures.dart';
 import '../support/hive_test_harness.dart';
@@ -45,6 +46,12 @@ void main() {
     expect(find.text('右下の + からTodoセットを作成してください'), findsOneWidget);
   });
 
+  testWidgets('shows today\'s date above the list', (tester) async {
+    await pumpScreen(tester);
+
+    expect(find.text(formatJapaneseDate(DateTime.now())), findsOneWidget);
+  });
+
   testWidgets('lists a TodoSet with its name and a schedule/item-count summary', (tester) async {
     // Seeding via tester.runAsync(): a Hive write made in the plain test zone
     // before the first pumpWidget deadlocks pumpWidget once a screen
@@ -60,6 +67,22 @@ void main() {
 
     expect(find.text('保育園'), findsOneWidget);
     expect(find.text('毎日 07:00 ・ 2件'), findsOneWidget);
+  });
+
+  // Simulating the actual drag gesture isn't covered here: it would fight
+  // the same real-Hive-write-timing issues documented throughout this file.
+  // The repository-level contract that onReorderItem relies on
+  // (List.removeAt/insert + TodoSetRepository.reorder) is covered directly
+  // and reliably in data/todo_set_repository_test.dart.
+  testWidgets('shows a drag handle for reordering on each row', (tester) async {
+    await tester.runAsync(() async {
+      await TodoSetRepository().save(buildTodoSet(id: 'a', name: 'A', sortOrder: 0));
+      await TodoSetRepository().save(buildTodoSet(id: 'b', name: 'B', sortOrder: 1));
+    });
+
+    await pumpScreen(tester);
+
+    expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
   });
 
   testWidgets('shows a filled check icon when today\'s checklist is already completed', (tester) async {

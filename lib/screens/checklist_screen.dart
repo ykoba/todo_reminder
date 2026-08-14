@@ -8,6 +8,7 @@ import '../providers/repository_providers.dart';
 import '../providers/todo_set_providers.dart';
 import '../utils/date_key.dart';
 import '../utils/schedule_format.dart';
+import 'checklist_history_screen.dart';
 
 /// Opened either from a notification tap or from the TodoSet list. Shows
 /// today's checklist for one TodoSet; checking items saves immediately, and
@@ -85,6 +86,15 @@ class _ChecklistBody extends ConsumerWidget {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: '完了履歴',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ChecklistHistoryScreen(todoSetId: todoSet.id)),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [

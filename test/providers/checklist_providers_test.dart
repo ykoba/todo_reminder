@@ -20,6 +20,16 @@ void main() {
 
   tearDown(() => harness.tearDown());
 
+  // Hive's box.watch() event, and Riverpod's re-emission from it, take a
+  // few real event-loop turns (not just microtasks) to reach a listener
+  // registered via container.listen — pumpEventQueue()'s zero-duration
+  // timers aren't reliably enough of them, so poll with a real delay.
+  Future<void> waitUntil(bool Function() ready) async {
+    for (var i = 0; i < 300 && !ready(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
   group('ChecklistKey', () {
     test('two keys with the same fields are equal and hash the same', () {
       const a = ChecklistKey(todoSetId: 'set-1', dateKey: '2026-01-01');
@@ -78,13 +88,7 @@ void main() {
       addTearDown(sub.close);
 
       await repo.toggleItem(checklist, 'item-1');
-      // Hive's box.watch() event, and Riverpod's re-emission from it, take a
-      // few real event-loop turns (not just microtasks) to reach a listener
-      // registered via container.listen, so poll with a real delay rather
-      // than relying on pumpEventQueue()'s zero-duration timers.
-      for (var i = 0; i < 150 && events.isEmpty; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
+      await waitUntil(() => events.isNotEmpty);
 
       expect(events, isNotEmpty);
       expect(events.last?.isChecked('item-1'), isTrue);
@@ -98,6 +102,39 @@ void main() {
       final value = await container.read(dailyChecklistProvider(otherKey).future);
 
       expect(value, isNull);
+    });
+  });
+
+  group('checklistHistoryProvider', () {
+    test('is empty when nothing has been recorded for that todoSet', () async {
+      final value = await container.read(checklistHistoryProvider('set-1').future);
+
+      expect(value, isEmpty);
+    });
+
+    test('reflects checklists already recorded before the first subscription', () async {
+      final todoSet = buildTodoSet(id: 'set-1');
+      container.read(checklistRepositoryProvider).getOrCreate(todoSet, '2026-01-01');
+
+      final value = await container.read(checklistHistoryProvider('set-1').future);
+
+      expect(value.keys, ['2026-01-01']);
+    });
+
+    test('emits an update after a new day is recorded', () async {
+      final todoSet = buildTodoSet(id: 'set-1');
+      final repo = container.read(checklistRepositoryProvider);
+      await container.read(checklistHistoryProvider('set-1').future);
+
+      final events = <Map<String, DailyChecklist>>[];
+      final sub = container.listen(checklistHistoryProvider('set-1'), (prev, next) => next.whenData(events.add));
+      addTearDown(sub.close);
+
+      repo.getOrCreate(todoSet, '2026-01-01');
+      await waitUntil(() => events.isNotEmpty);
+
+      expect(events, isNotEmpty);
+      expect(events.last.keys, ['2026-01-01']);
     });
   });
 }

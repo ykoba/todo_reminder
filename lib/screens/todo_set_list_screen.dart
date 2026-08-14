@@ -39,20 +39,46 @@ class TodoSetListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: todoSetsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('読み込みに失敗しました: $error')),
-        data: (todoSets) {
-          if (todoSets.isEmpty) {
-            return const Center(
-              child: Text('右下の + からTodoセットを作成してください'),
-            );
-          }
-          return ListView.builder(
-            itemCount: todoSets.length,
-            itemBuilder: (context, index) => _TodoSetTile(todoSet: todoSets[index]),
-          );
-        },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                formatJapaneseDate(DateTime.now()),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ),
+          Expanded(
+            child: todoSetsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => Center(child: Text('読み込みに失敗しました: $error')),
+              data: (todoSets) {
+                if (todoSets.isEmpty) {
+                  return const Center(
+                    child: Text('右下の + からTodoセットを作成してください'),
+                  );
+                }
+                return ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
+                  itemCount: todoSets.length,
+                  onReorderItem: (oldIndex, newIndex) {
+                    final reordered = List<TodoSet>.from(todoSets);
+                    reordered.insert(newIndex, reordered.removeAt(oldIndex));
+                    ref.read(todoSetRepositoryProvider).reorder(reordered);
+                  },
+                  itemBuilder: (context, index) => _TodoSetTile(
+                    key: ValueKey(todoSets[index].id),
+                    todoSet: todoSets[index],
+                    index: index,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.of(context).push(
@@ -66,9 +92,10 @@ class TodoSetListScreen extends ConsumerWidget {
 }
 
 class _TodoSetTile extends ConsumerWidget {
-  const _TodoSetTile({required this.todoSet});
+  const _TodoSetTile({required super.key, required this.todoSet, required this.index});
 
   final TodoSet todoSet;
+  final int index;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -80,9 +107,19 @@ class _TodoSetTile extends ConsumerWidget {
     return ListTile(
       title: Text(todoSet.name),
       subtitle: Text('${scheduleSummary(todoSet.schedule)} ・ ${todoSet.items.length}件'),
-      leading: isCompletedToday
-          ? const Icon(Icons.check_circle, color: Colors.green)
-          : const Icon(Icons.circle_outlined),
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ReorderableDragStartListener(
+            index: index,
+            child: const Icon(Icons.drag_handle),
+          ),
+          const SizedBox(width: 12),
+          isCompletedToday
+              ? const Icon(Icons.check_circle, color: Colors.green)
+              : const Icon(Icons.circle_outlined),
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

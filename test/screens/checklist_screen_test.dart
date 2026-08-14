@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todo_reminder/data/checklist_repository.dart';
 import 'package:todo_reminder/data/todo_set_repository.dart';
 import 'package:todo_reminder/models/todo_set.dart';
+import 'package:todo_reminder/screens/checklist_history_screen.dart';
 import 'package:todo_reminder/screens/checklist_screen.dart';
 import 'package:todo_reminder/utils/date_key.dart';
 
@@ -116,5 +117,15 @@ void main() {
 
     expect(find.text('項目がありません'), findsOneWidget);
     expect(find.text('0/0 チェック済み'), findsOneWidget);
+  });
+
+  testWidgets('tapping the calendar icon opens the completion history screen', (tester) async {
+    final set = await seedTodoSet(tester);
+
+    await pumpChecklist(tester, set.id);
+    await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+    await settle(tester);
+
+    expect(find.byType(ChecklistHistoryScreen), findsOneWidget);
   });
 }

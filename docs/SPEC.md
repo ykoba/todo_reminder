@@ -20,6 +20,7 @@
 
 ### 3.1 Todoセットの管理
 - 一覧画面でTodoセットを作成・編集・削除できる。
+- 一覧画面でTodoセットをドラッグして表示順を並び替えられる（`sortOrder` に永続化）。
 - 1セットは「名前」「項目リスト（並び替え可）」「通知時刻」「通知する曜日（複数選択）」
   「通知の有効/無効」を持つ。
 - 名前は必須（空文字では保存不可）。項目のうち、ラベルが空のものは保存時に除外される。
@@ -93,8 +94,9 @@
 | `isEnabled` | `bool` | 通知の有効/無効 |
 | `createdAt` | `DateTime` | 作成日時 |
 | `updatedAt` | `DateTime` | 更新日時 |
+| `sortOrder` | `int` | 一覧画面での表示順（昇順）。フィールド追加前に保存された既存データは読み込み時に `0` として扱われる |
 
-`sortedItems`（getter）は `sortOrder` 昇順にソートした `items` を返す。
+`sortedItems`（getter）は `TodoItem.sortOrder` 昇順にソートした `items` を返す（`TodoSet.sortOrder` とは別物）。
 
 ### 4.4 `DailyChecklist`
 | フィールド | 型 | 説明 |
@@ -115,7 +117,8 @@
   `settings` ボックス（型なし、アプリ全体の設定値用）のオープンを行う
   （`initHive()`、`main()` から起動時に1回呼ばれる）。
 - `todo_set_repository.dart` (`TodoSetRepository`): `todo_sets` ボックスへのCRUD。
-  一覧は `createdAt` 昇順で返す。
+  一覧は `sortOrder` 昇順で返す。`reorder(orderedSets)` は与えられた順序に合わせて各セットの
+  `sortOrder` を振り直して保存する（一覧画面のドラッグ並び替えから呼ばれる）。
 - `checklist_repository.dart` (`ChecklistRepository`): `daily_checklists` ボックスへのCRUD。
   キーは `"{todoSetId}_{dateKey}"`。`getOrCreate` は当日分が無ければ空の `DailyChecklist` を
   作成して保存する。`toggleItem` / `setCompleted` は即座に該当レコードを保存する。
@@ -180,9 +183,11 @@ TodoSetListScreen（一覧・起点）
 ### 8.2 `TodoSetListScreen`
 - `todoSetListProvider` を購読し、Todoセットが0件なら案内文、それ以外は `ListTile` の
   リストを表示。
-- 各行に「本日完了済みか（アイコン）」「スケジュール概要 ・ 項目数」「有効/無効スイッチ」
-  「編集ボタン」を表示。行タップでチェックリスト画面へ。
-- 右下のFABから新規作成画面へ遷移。
+- 各行に「ドラッグハンドル」「本日完了済みか（アイコン）」「スケジュール概要 ・ 項目数」
+  「有効/無効スイッチ」「編集ボタン」を表示。行タップでチェックリスト画面へ。
+- ドラッグハンドルを掴んで並び替えると、`TodoSetRepository.reorder` により表示順が永続化される。
+- 右下のFABから新規作成画面へ遷移。新規セットは常に一覧の末尾に追加される
+  （`sortOrder` = 作成時点のセット数）。
 - AppBarのアイコンボタン（現在のテーマに応じて表示が変わる）から表示テーマを選択できる
   （「端末の設定に従う」「ライト」「ダーク」）。選択は `themeModeProvider` を通じて即時に
   アプリ全体へ反映され、Hiveに永続化される。

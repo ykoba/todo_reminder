@@ -37,14 +37,15 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   late Set<int> _repeatDays;
   late bool _isEnabled;
   late final DateTime _createdAt;
+  late final int _sortOrder;
 
   bool get _isEditing => widget.todoSetId != null;
 
   @override
   void initState() {
     super.initState();
-    final existing =
-        widget.todoSetId == null ? null : ref.read(todoSetRepositoryProvider).getById(widget.todoSetId!);
+    final repository = ref.read(todoSetRepositoryProvider);
+    final existing = widget.todoSetId == null ? null : repository.getById(widget.todoSetId!);
 
     _nameController = TextEditingController(text: existing?.name ?? '');
     _items = (existing?.sortedItems ?? const <TodoItem>[])
@@ -55,6 +56,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     _repeatDays = existing?.schedule.repeatDays.toSet() ?? {1, 2, 3, 4, 5, 6, 7};
     _isEnabled = existing?.isEnabled ?? true;
     _createdAt = existing?.createdAt ?? DateTime.now();
+    // New sets are appended after the current last one in the list order.
+    _sortOrder = existing?.sortOrder ?? repository.getAll().length;
   }
 
   @override
@@ -126,6 +129,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
       isEnabled: _isEnabled,
       createdAt: _createdAt,
       updatedAt: DateTime.now(),
+      sortOrder: _sortOrder,
     );
 
     await ref.read(todoSetRepositoryProvider).save(todoSet);

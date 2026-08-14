@@ -15,6 +15,7 @@ class TodoSet extends HiveObject {
     required this.isEnabled,
     required this.createdAt,
     required this.updatedAt,
+    required this.sortOrder,
   });
 
   @HiveField(0)
@@ -37,6 +38,11 @@ class TodoSet extends HiveObject {
 
   @HiveField(6)
   DateTime updatedAt;
+
+  /// Manual ordering for the TodoSet list (lower sorts first). Sets created
+  /// before this field existed default to 0 on read.
+  @HiveField(7, defaultValue: 0)
+  int sortOrder;
 
   List<TodoItem> get sortedItems =>
       List<TodoItem>.from(items)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));

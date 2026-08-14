@@ -13,6 +13,7 @@ TodoSet _buildSet(List<TodoItem> items) {
     isEnabled: true,
     createdAt: DateTime(2026, 1, 1),
     updatedAt: DateTime(2026, 1, 1),
+    sortOrder: 0,
   );
 }
 

@@ -12,7 +12,7 @@ class TodoSetRepository {
 
   List<TodoSet> getAll() {
     final sets = _box.values.toList();
-    sets.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    sets.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return sets;
   }
 
@@ -27,4 +27,15 @@ class TodoSetRepository {
   Future<void> save(TodoSet todoSet) => _box.put(todoSet.id, todoSet);
 
   Future<void> delete(String id) => _box.delete(id);
+
+  /// Persists [orderedSets] (already in their new display order) by
+  /// rewriting each one's `sortOrder` to match its position in the list.
+  Future<void> reorder(List<TodoSet> orderedSets) async {
+    for (var i = 0; i < orderedSets.length; i++) {
+      if (orderedSets[i].sortOrder != i) {
+        orderedSets[i].sortOrder = i;
+        await orderedSets[i].save();
+      }
+    }
+  }
 }
