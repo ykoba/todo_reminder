@@ -28,45 +28,69 @@ void main() {
       expect(checklist.isCompleted, isFalse);
     });
 
-    test('persists the created checklist so a plain get() finds it afterward', () {
-      final todoSet = buildTodoSet(id: 'set-1');
+    test(
+      'persists the created checklist so a plain get() finds it afterward',
+      () {
+        final todoSet = buildTodoSet(id: 'set-1');
 
-      repository.getOrCreate(todoSet, '2026-01-01');
+        repository.getOrCreate(todoSet, '2026-01-01');
 
-      expect(repository.get('set-1', '2026-01-01'), isNotNull);
-    });
+        expect(repository.get('set-1', '2026-01-01'), isNotNull);
+      },
+    );
 
-    test('returns the same record on repeated calls instead of resetting progress', () {
-      final todoSet = buildTodoSet(id: 'set-1', items: [buildTodoItem(id: 'item-1')]);
+    test(
+      'returns the same record on repeated calls instead of resetting progress',
+      () {
+        final todoSet = buildTodoSet(
+          id: 'set-1',
+          items: [buildTodoItem(id: 'item-1')],
+        );
 
-      final first = repository.getOrCreate(todoSet, '2026-01-01');
-      repository.toggleItem(first, 'item-1');
+        final first = repository.getOrCreate(todoSet, '2026-01-01');
+        repository.toggleItem(first, 'item-1');
 
-      final second = repository.getOrCreate(todoSet, '2026-01-01');
+        final second = repository.getOrCreate(todoSet, '2026-01-01');
 
-      expect(second.isChecked('item-1'), isTrue);
-    });
+        expect(second.isChecked('item-1'), isTrue);
+      },
+    );
 
-    test('keeps checklists for the same todoSet on different dates independent', () {
-      final todoSet = buildTodoSet(id: 'set-1', items: [buildTodoItem(id: 'item-1')]);
+    test(
+      'keeps checklists for the same todoSet on different dates independent',
+      () {
+        final todoSet = buildTodoSet(
+          id: 'set-1',
+          items: [buildTodoItem(id: 'item-1')],
+        );
 
-      final day1 = repository.getOrCreate(todoSet, '2026-01-01');
-      repository.toggleItem(day1, 'item-1');
-      final day2 = repository.getOrCreate(todoSet, '2026-01-02');
+        final day1 = repository.getOrCreate(todoSet, '2026-01-01');
+        repository.toggleItem(day1, 'item-1');
+        final day2 = repository.getOrCreate(todoSet, '2026-01-02');
 
-      expect(day2.isChecked('item-1'), isFalse);
-    });
+        expect(day2.isChecked('item-1'), isFalse);
+      },
+    );
 
-    test('keeps checklists for different todoSets on the same date independent', () {
-      final setA = buildTodoSet(id: 'set-a', items: [buildTodoItem(id: 'item-1')]);
-      final setB = buildTodoSet(id: 'set-b', items: [buildTodoItem(id: 'item-1')]);
+    test(
+      'keeps checklists for different todoSets on the same date independent',
+      () {
+        final setA = buildTodoSet(
+          id: 'set-a',
+          items: [buildTodoItem(id: 'item-1')],
+        );
+        final setB = buildTodoSet(
+          id: 'set-b',
+          items: [buildTodoItem(id: 'item-1')],
+        );
 
-      final checklistA = repository.getOrCreate(setA, '2026-01-01');
-      repository.toggleItem(checklistA, 'item-1');
-      final checklistB = repository.getOrCreate(setB, '2026-01-01');
+        final checklistA = repository.getOrCreate(setA, '2026-01-01');
+        repository.toggleItem(checklistA, 'item-1');
+        final checklistB = repository.getOrCreate(setB, '2026-01-01');
 
-      expect(checklistB.isChecked('item-1'), isFalse);
-    });
+        expect(checklistB.isChecked('item-1'), isFalse);
+      },
+    );
   });
 
   test('get returns null when no checklist has been created for that key', () {
@@ -153,7 +177,10 @@ void main() {
 
       await repository.toggleItem(checklist, 'item-1');
 
-      expect(repository.get('set-1', '2026-01-01')!.isChecked('item-1'), isTrue);
+      expect(
+        repository.get('set-1', '2026-01-01')!.isChecked('item-1'),
+        isTrue,
+      );
     });
   });
 
@@ -177,6 +204,64 @@ void main() {
 
       expect(checklist.isCompleted, isFalse);
       expect(checklist.completedAt, isNull);
+    });
+  });
+
+  group('setAllChecked', () {
+    test('checked: true marks every given id as checked', () async {
+      final todoSet = buildTodoSet(id: 'set-1');
+      final checklist = repository.getOrCreate(todoSet, '2026-01-01');
+
+      await repository.setAllChecked(checklist, ['item-1', 'item-2'], true);
+
+      expect(checklist.isChecked('item-1'), isTrue);
+      expect(checklist.isChecked('item-2'), isTrue);
+    });
+
+    test(
+      'checked: false clears every checked item, ignoring the id list',
+      () async {
+        final todoSet = buildTodoSet(id: 'set-1');
+        final checklist = repository.getOrCreate(todoSet, '2026-01-01');
+        await repository.toggleItem(checklist, 'item-1');
+        await repository.toggleItem(checklist, 'item-2');
+
+        await repository.setAllChecked(checklist, [], false);
+
+        expect(checklist.checkedItemIds, isEmpty);
+      },
+    );
+
+    test('persists the change so a fresh read reflects it', () async {
+      final todoSet = buildTodoSet(id: 'set-1');
+      final checklist = repository.getOrCreate(todoSet, '2026-01-01');
+
+      await repository.setAllChecked(checklist, ['item-1'], true);
+
+      expect(
+        repository.get('set-1', '2026-01-01')!.isChecked('item-1'),
+        isTrue,
+      );
+    });
+  });
+
+  group('setMemo', () {
+    test('persists the memo text', () async {
+      final todoSet = buildTodoSet(id: 'set-1');
+      final checklist = repository.getOrCreate(todoSet, '2026-01-01');
+
+      await repository.setMemo(checklist, '発熱のため早退');
+
+      expect(checklist.memo, '発熱のため早退');
+      expect(repository.get('set-1', '2026-01-01')!.memo, '発熱のため早退');
+    });
+
+    test('an empty memo is the default for a newly created checklist', () {
+      final todoSet = buildTodoSet(id: 'set-1');
+
+      final checklist = repository.getOrCreate(todoSet, '2026-01-01');
+
+      expect(checklist.memo, '');
     });
   });
 }

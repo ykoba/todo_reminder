@@ -38,5 +38,16 @@ void main() {
       expect(checklist.isChecked('item-a'), isTrue);
       expect(checklist.isChecked('item-b'), isFalse);
     });
+
+    test('memo defaults to an empty string when not given', () {
+      final checklist = DailyChecklist(
+        id: 'c-1',
+        todoSetId: 'set-1',
+        dateKey: '2026-01-01',
+        checkedItemIds: [],
+      );
+
+      expect(checklist.memo, '');
+    });
   });
 }

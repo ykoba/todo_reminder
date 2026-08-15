@@ -65,7 +65,9 @@ void main() {
 
     test('returns the checklist once created via the repository', () async {
       final todoSet = buildTodoSet(id: 'set-1');
-      container.read(checklistRepositoryProvider).getOrCreate(todoSet, '2026-01-01');
+      container
+          .read(checklistRepositoryProvider)
+          .getOrCreate(todoSet, '2026-01-01');
 
       const key = ChecklistKey(todoSetId: 'set-1', dateKey: '2026-01-01');
       final value = await container.read(dailyChecklistProvider(key).future);
@@ -80,12 +82,25 @@ void main() {
       final repo = container.read(checklistRepositoryProvider);
       final checklist = repo.getOrCreate(todoSet, '2026-01-01');
 
+      // The listener must be registered before this provider is ever read
+      // any other way (e.g. via `.future`): `_watchChecklist` is a
+      // single-subscription Stream, and a prior `.future` read detaches
+      // its one listener as soon as it resolves, permanently exhausting
+      // the stream — no listener registered afterwards ever receives a
+      // later update, no matter how long it waits.
       const key = ChecklistKey(todoSetId: 'set-1', dateKey: '2026-01-01');
-      await container.read(dailyChecklistProvider(key).future);
-
       final events = <DailyChecklist?>[];
-      final sub = container.listen(dailyChecklistProvider(key), (prev, next) => next.whenData(events.add));
+      final sub = container.listen(
+        dailyChecklistProvider(key),
+        (prev, next) => next.whenData(events.add),
+      );
       addTearDown(sub.close);
+
+      // The listener's own initial build (the current, pre-toggle value)
+      // arrives asynchronously too; let it land and clear it so it isn't
+      // mistaken for the update under test.
+      await waitUntil(() => events.isNotEmpty);
+      events.clear();
 
       await repo.toggleItem(checklist, 'item-1');
       await waitUntil(() => events.isNotEmpty);
@@ -96,10 +111,14 @@ void main() {
 
     test('a different (todoSetId, dateKey) key stays independent', () async {
       final todoSet = buildTodoSet(id: 'set-1');
-      container.read(checklistRepositoryProvider).getOrCreate(todoSet, '2026-01-01');
+      container
+          .read(checklistRepositoryProvider)
+          .getOrCreate(todoSet, '2026-01-01');
 
       const otherKey = ChecklistKey(todoSetId: 'set-1', dateKey: '2026-01-02');
-      final value = await container.read(dailyChecklistProvider(otherKey).future);
+      final value = await container.read(
+        dailyChecklistProvider(otherKey).future,
+      );
 
       expect(value, isNull);
     });
@@ -107,28 +126,44 @@ void main() {
 
   group('checklistHistoryProvider', () {
     test('is empty when nothing has been recorded for that todoSet', () async {
-      final value = await container.read(checklistHistoryProvider('set-1').future);
+      final value = await container.read(
+        checklistHistoryProvider('set-1').future,
+      );
 
       expect(value, isEmpty);
     });
 
-    test('reflects checklists already recorded before the first subscription', () async {
-      final todoSet = buildTodoSet(id: 'set-1');
-      container.read(checklistRepositoryProvider).getOrCreate(todoSet, '2026-01-01');
+    test(
+      'reflects checklists already recorded before the first subscription',
+      () async {
+        final todoSet = buildTodoSet(id: 'set-1');
+        container
+            .read(checklistRepositoryProvider)
+            .getOrCreate(todoSet, '2026-01-01');
 
-      final value = await container.read(checklistHistoryProvider('set-1').future);
+        final value = await container.read(
+          checklistHistoryProvider('set-1').future,
+        );
 
-      expect(value.keys, ['2026-01-01']);
-    });
+        expect(value.keys, ['2026-01-01']);
+      },
+    );
 
     test('emits an update after a new day is recorded', () async {
       final todoSet = buildTodoSet(id: 'set-1');
       final repo = container.read(checklistRepositoryProvider);
-      await container.read(checklistHistoryProvider('set-1').future);
 
+      // See the comment in the dailyChecklistProvider test above for why
+      // the listener must be registered before any `.future` read.
       final events = <Map<String, DailyChecklist>>[];
-      final sub = container.listen(checklistHistoryProvider('set-1'), (prev, next) => next.whenData(events.add));
+      final sub = container.listen(
+        checklistHistoryProvider('set-1'),
+        (prev, next) => next.whenData(events.add),
+      );
       addTearDown(sub.close);
+
+      await waitUntil(() => events.isNotEmpty);
+      events.clear();
 
       repo.getOrCreate(todoSet, '2026-01-01');
       await waitUntil(() => events.isNotEmpty);

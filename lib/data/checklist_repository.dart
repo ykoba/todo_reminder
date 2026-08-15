@@ -9,9 +9,11 @@ import 'hive_boxes.dart';
 const _uuid = Uuid();
 
 class ChecklistRepository {
-  Box<DailyChecklist> get _box => Hive.box<DailyChecklist>(dailyChecklistBoxName);
+  Box<DailyChecklist> get _box =>
+      Hive.box<DailyChecklist>(dailyChecklistBoxName);
 
-  static String _key(String todoSetId, String dateKey) => '${todoSetId}_$dateKey';
+  static String _key(String todoSetId, String dateKey) =>
+      '${todoSetId}_$dateKey';
 
   ValueListenable<Box<DailyChecklist>> listenable() => _box.listenable();
 
@@ -34,7 +36,8 @@ class ChecklistRepository {
     return created;
   }
 
-  DailyChecklist? get(String todoSetId, String dateKey) => _box.get(_key(todoSetId, dateKey));
+  DailyChecklist? get(String todoSetId, String dateKey) =>
+      _box.get(_key(todoSetId, dateKey));
 
   /// All recorded checklists for [todoSetId], keyed by their `dateKey`. Used
   /// to render completion history (e.g. a calendar view).
@@ -53,8 +56,26 @@ class ChecklistRepository {
     await checklist.save();
   }
 
+  /// Sets every id in [itemIds] as checked (`checked: true`) or clears all
+  /// checks (`checked: false`, [itemIds] is then ignored).
+  Future<void> setAllChecked(
+    DailyChecklist checklist,
+    List<String> itemIds,
+    bool checked,
+  ) async {
+    checklist.checkedItemIds = checked
+        ? List<String>.from(itemIds)
+        : <String>[];
+    await checklist.save();
+  }
+
   Future<void> setCompleted(DailyChecklist checklist, bool completed) async {
     checklist.completedAt = completed ? DateTime.now() : null;
+    await checklist.save();
+  }
+
+  Future<void> setMemo(DailyChecklist checklist, String memo) async {
+    checklist.memo = memo;
     await checklist.save();
   }
 }

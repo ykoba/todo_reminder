@@ -152,4 +152,43 @@ void main() {
 
     expect(find.byType(ChecklistHistoryScreen), findsOneWidget);
   });
+
+  testWidgets('shows a memo field pre-filled with the day\'s saved memo', (
+    tester,
+  ) async {
+    final set = await seedTodoSet(tester);
+    await tester.runAsync(() async {
+      final checklist = ChecklistRepository().getOrCreate(set, todayKey());
+      await ChecklistRepository().setMemo(checklist, '発熱のため早退');
+    });
+
+    await pumpChecklist(tester, set.id);
+
+    expect(find.widgetWithText(TextFormField, '発熱のため早退'), findsOneWidget);
+    expect(find.text('メモ'), findsOneWidget);
+  });
+
+  testWidgets('offers a button to check every item at once', (tester) async {
+    final set = await seedTodoSet(tester);
+
+    await pumpChecklist(tester, set.id);
+
+    final button = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.done_all),
+    );
+    expect(button.onPressed, isNotNull);
+  });
+
+  testWidgets('disables the check-all button when there are no items', (
+    tester,
+  ) async {
+    final set = await seedTodoSet(tester, itemLabels: const []);
+
+    await pumpChecklist(tester, set.id);
+
+    final button = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.done_all),
+    );
+    expect(button.onPressed, isNull);
+  });
 }

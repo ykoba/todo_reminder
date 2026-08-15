@@ -12,6 +12,7 @@ class DailyChecklist extends HiveObject {
     required this.dateKey,
     required this.checkedItemIds,
     this.completedAt,
+    this.memo = '',
   });
 
   @HiveField(0)
@@ -28,6 +29,10 @@ class DailyChecklist extends HiveObject {
 
   @HiveField(4)
   DateTime? completedAt;
+
+  /// Free-form note for this day, entered on the checklist screen.
+  @HiveField(5, defaultValue: '')
+  String memo;
 
   bool get isCompleted => completedAt != null;
 

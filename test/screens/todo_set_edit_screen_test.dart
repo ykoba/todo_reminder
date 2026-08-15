@@ -102,6 +102,21 @@ void main() {
     });
 
     testWidgets(
+      'limits the set name to 20 characters regardless of half/full-width',
+      (tester) async {
+        await pumpEdit(tester);
+
+        await tester.enterText(find.byType(TextField).first, 'あ' * 25);
+        await settle(tester);
+
+        final nameField = tester.widget<TextField>(
+          find.byType(TextField).first,
+        );
+        expect(nameField.controller!.text.length, 20);
+      },
+    );
+
+    testWidgets(
       'offers all 20 icon choices with "checklist" selected by default',
       (tester) async {
         await pumpEdit(tester);

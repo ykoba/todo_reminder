@@ -23,10 +23,9 @@ void main() {
   setUp(() async {
     await harness.setUp();
     final log = mockNotificationChannels();
-    // scheduleForTodoSet() (triggered by the enable/disable switch) needs
-    // tz.local, which is only set up by NotificationService.init() —
-    // normally called once from main() at app startup, so tests must call
-    // it themselves.
+    // scheduleForTodoSet() (triggered by saving) needs tz.local, which is
+    // only set up by NotificationService.init() — normally called once from
+    // main() at app startup, so tests must call it themselves.
     await NotificationService.instance.init();
     log.clear();
   });
@@ -51,14 +50,18 @@ void main() {
     expect(find.text('右下の + からTodoセットを作成してください'), findsOneWidget);
   });
 
-  testWidgets('shows today\'s date above the list', (tester) async {
+  testWidgets('does not show a date header above the list', (tester) async {
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+    );
+
     await pumpScreen(tester);
 
-    expect(find.text(formatJapaneseDate(DateTime.now())), findsOneWidget);
+    expect(find.text(formatJapaneseDate(DateTime.now())), findsNothing);
   });
 
   testWidgets(
-    'lists a TodoSet with its name and a schedule/item-count summary',
+    'lists a TodoSet with its name and schedule summary, without an item count',
     (tester) async {
       // Seeding via tester.runAsync(): a Hive write made in the plain test zone
       // before the first pumpWidget deadlocks pumpWidget once a screen
@@ -81,7 +84,8 @@ void main() {
       await pumpScreen(tester);
 
       expect(find.text('保育園'), findsOneWidget);
-      expect(find.text('毎日 07:00 ・ 2件'), findsOneWidget);
+      expect(find.text('毎日 07:00'), findsOneWidget);
+      expect(find.textContaining('件'), findsNothing);
     },
   );
 
@@ -103,72 +107,188 @@ void main() {
     );
   });
 
-  // Simulating the actual drag gesture isn't covered here: it would fight
-  // the same real-Hive-write-timing issues documented throughout this file.
-  // The repository-level contract that onReorderItem relies on
-  // (List.removeAt/insert + TodoSetRepository.reorder) is covered directly
-  // and reliably in data/todo_set_repository_test.dart.
-  testWidgets('shows a drag handle for reordering on each row', (tester) async {
-    await tester.runAsync(() async {
-      await TodoSetRepository().save(
-        buildTodoSet(id: 'a', name: 'A', sortOrder: 0),
-      );
-      await TodoSetRepository().save(
-        buildTodoSet(id: 'b', name: 'B', sortOrder: 1),
-      );
-    });
-
-    await pumpScreen(tester);
-
-    expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
-  });
-
-  testWidgets(
-    'shows a filled check icon when today\'s checklist is already completed',
-    (tester) async {
-      await tester.runAsync(() async {
-        final set = buildTodoSet(id: 'a');
-        await TodoSetRepository().save(set);
-        final checklist = ChecklistRepository().getOrCreate(set, todayKey());
-        await ChecklistRepository().setCompleted(checklist, true);
-      });
-
-      await pumpScreen(tester);
-
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
-      expect(find.byIcon(Icons.circle_outlined), findsNothing);
-    },
-  );
-
-  testWidgets('shows an outlined circle icon when today is not completed yet', (
+  testWidgets('does not show a completion checkmark on the row', (
     tester,
   ) async {
     await tester.runAsync(
-      () => TodoSetRepository().save(buildTodoSet(id: 'a')),
+      () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
     );
 
     await pumpScreen(tester);
 
-    expect(find.byIcon(Icons.circle_outlined), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.byIcon(Icons.circle_outlined), findsNothing);
   });
 
-  // Toggling the switch and asserting on the result isn't covered at this
-  // level: in this test environment, a real Hive write triggered from
-  // inside a widget callback doesn't reliably signal its own completion
-  // back to the awaiting code, and no pump()/pumpAndSettle()/runAsync()
-  // combination found so far makes that reliable. The switch's onChanged
-  // handler calls TodoSetRepository.save(), which is covered thoroughly and
-  // reliably in data/todo_set_repository_test.dart; here, only that the
-  // switch reflects the current isEnabled is checked (read-only).
-  testWidgets('switch reflects the set\'s isEnabled value', (tester) async {
+  testWidgets('does not show an enabled/disabled switch on the row', (
+    tester,
+  ) async {
+    // Whether a set is enabled is set from TodoSetEditScreen instead — see
+    // todo_set_edit_screen_test.dart's "enabled switch" coverage.
     await tester.runAsync(
-      () => TodoSetRepository().save(buildTodoSet(id: 'a', isEnabled: false)),
+      () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
     );
 
     await pumpScreen(tester);
 
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(find.byType(Switch), findsNothing);
+  });
+
+  group('reorder mode', () {
+    // Simulating the actual drag gesture isn't covered here: it would fight
+    // the same real-Hive-write-timing issues documented throughout this
+    // file. The repository-level contract that onReorderItem relies on
+    // (List.removeAt/insert + TodoSetRepository.reorder) is covered
+    // directly and reliably in data/todo_set_repository_test.dart.
+    testWidgets(
+      'hides drag handles until reorder mode is entered via the sort button',
+      (tester) async {
+        await tester.runAsync(() async {
+          await TodoSetRepository().save(
+            buildTodoSet(id: 'a', name: 'A', sortOrder: 0),
+          );
+          await TodoSetRepository().save(
+            buildTodoSet(id: 'b', name: 'B', sortOrder: 1),
+          );
+        });
+
+        await pumpScreen(tester);
+        expect(find.byIcon(Icons.drag_handle), findsNothing);
+
+        await tester.tap(find.byIcon(Icons.sort));
+        await settle(tester);
+
+        expect(find.text('並び替え'), findsOneWidget);
+        expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
+      },
+    );
+
+    testWidgets('tapping 完了 in reorder mode returns to the normal list', (
+      tester,
+    ) async {
+      await tester.runAsync(
+        () => TodoSetRepository().save(buildTodoSet(id: 'a', name: 'A')),
+      );
+
+      await pumpScreen(tester);
+      await tester.tap(find.byIcon(Icons.sort));
+      await settle(tester);
+      expect(find.byIcon(Icons.drag_handle), findsOneWidget);
+
+      await tester.tap(find.text('完了'));
+      await settle(tester);
+
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
+      expect(find.text('Todoリマインダー'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+
+    testWidgets('hides the FAB and edit button while reordering', (
+      tester,
+    ) async {
+      await tester.runAsync(
+        () => TodoSetRepository().save(buildTodoSet(id: 'a', name: 'A')),
+      );
+
+      await pumpScreen(tester);
+      await tester.tap(find.byIcon(Icons.sort));
+      await settle(tester);
+
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    });
+  });
+
+  group('edit mode', () {
+    testWidgets(
+      'hides the edit button on each row until edit mode is entered via the AppBar edit button',
+      (tester) async {
+        await tester.runAsync(
+          () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+        );
+
+        await pumpScreen(tester);
+        expect(
+          find.byIcon(Icons.edit_outlined),
+          findsOneWidget,
+        ); // AppBar toggle only
+
+        await tester.tap(find.byIcon(Icons.edit_outlined));
+        await settle(tester);
+
+        expect(find.text('編集'), findsOneWidget);
+        expect(
+          find.byIcon(Icons.edit_outlined),
+          findsOneWidget,
+        ); // per-row button
+      },
+    );
+
+    testWidgets('tapping 完了 in edit mode returns to the normal list', (
+      tester,
+    ) async {
+      await tester.runAsync(
+        () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+      );
+
+      await pumpScreen(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+
+      await tester.tap(find.text('完了'));
+      await settle(tester);
+
+      expect(find.text('Todoリマインダー'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+    });
+
+    testWidgets('hides the FAB and sort button while editing', (tester) async {
+      await tester.runAsync(
+        () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+      );
+
+      await pumpScreen(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byIcon(Icons.sort), findsNothing);
+    });
+
+    testWidgets(
+      'tapping the row\'s edit button opens the edit screen pre-filled with the set name',
+      (tester) async {
+        await tester.runAsync(
+          () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+        );
+
+        await pumpScreen(tester);
+        await tester.tap(find.byIcon(Icons.edit_outlined));
+        await settle(tester);
+        await tester.tap(find.byIcon(Icons.edit_outlined).last);
+        await settle(tester);
+
+        expect(find.text('セットを編集'), findsOneWidget);
+        expect(find.text('保育園'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'tapping the row itself while editing also opens the edit screen',
+      (tester) async {
+        await tester.runAsync(
+          () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+        );
+
+        await pumpScreen(tester);
+        await tester.tap(find.byIcon(Icons.edit_outlined));
+        await settle(tester);
+        await tester.tap(find.text('保育園'));
+        await settle(tester);
+
+        expect(find.text('セットを編集'), findsOneWidget);
+      },
+    );
   });
 
   testWidgets(
@@ -197,23 +317,7 @@ void main() {
     expect(find.text('セットを作成'), findsOneWidget);
   });
 
-  testWidgets(
-    'tapping the edit icon opens the edit screen pre-filled with the set name',
-    (tester) async {
-      await tester.runAsync(
-        () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
-      );
-
-      await pumpScreen(tester);
-      await tester.tap(find.byIcon(Icons.edit_outlined));
-      await settle(tester);
-
-      expect(find.text('セットを編集'), findsOneWidget);
-      expect(find.text('保育園'), findsOneWidget);
-    },
-  );
-
-  testWidgets('tapping a row opens the checklist screen for that set', (
+  testWidgets('tapping a row in the normal list opens the checklist screen', (
     tester,
   ) async {
     // Pre-creating today's DailyChecklist here too: ChecklistScreen (the

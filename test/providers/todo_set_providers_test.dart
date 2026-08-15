@@ -37,22 +37,42 @@ void main() {
       expect(sets, isEmpty);
     });
 
-    test('reflects sets that were already saved before the first subscription', () async {
-      await container.read(todoSetRepositoryProvider).save(buildTodoSet(id: 'a'));
+    test(
+      'reflects sets that were already saved before the first subscription',
+      () async {
+        await container
+            .read(todoSetRepositoryProvider)
+            .save(buildTodoSet(id: 'a'));
 
-      final sets = await container.read(todoSetListProvider.future);
+        final sets = await container.read(todoSetListProvider.future);
 
-      expect(sets.map((s) => s.id), ['a']);
-    });
+        expect(sets.map((s) => s.id), ['a']);
+      },
+    );
 
     test('emits an updated list after a set is saved', () async {
-      await container.read(todoSetListProvider.future);
-
+      // The listener must be registered before this provider is ever read
+      // any other way (e.g. via `.future`): `_watchAll` is a
+      // single-subscription Stream, and a prior `.future` read detaches
+      // its one listener as soon as it resolves, permanently exhausting
+      // the stream — no listener registered afterwards ever receives a
+      // later update, no matter how long it waits.
       final events = <List<TodoSet>>[];
-      final sub = container.listen(todoSetListProvider, (prev, next) => next.whenData(events.add));
+      final sub = container.listen(
+        todoSetListProvider,
+        (prev, next) => next.whenData(events.add),
+      );
       addTearDown(sub.close);
 
-      await container.read(todoSetRepositoryProvider).save(buildTodoSet(id: 'a'));
+      // The listener's own initial build (the current, empty list) arrives
+      // asynchronously too; let it land and clear it so it isn't mistaken
+      // for the update under test.
+      await waitUntil(() => events.isNotEmpty);
+      events.clear();
+
+      await container
+          .read(todoSetRepositoryProvider)
+          .save(buildTodoSet(id: 'a'));
       await waitUntil(() => events.isNotEmpty);
 
       expect(events, isNotEmpty);
@@ -60,12 +80,21 @@ void main() {
     });
 
     test('emits an updated list after a set is deleted', () async {
-      await container.read(todoSetRepositoryProvider).save(buildTodoSet(id: 'a'));
-      await container.read(todoSetListProvider.future);
+      await container
+          .read(todoSetRepositoryProvider)
+          .save(buildTodoSet(id: 'a'));
 
+      // See the comment in the "saved" test above for why the listener
+      // must be registered before any `.future` read.
       final events = <List<TodoSet>>[];
-      final sub = container.listen(todoSetListProvider, (prev, next) => next.whenData(events.add));
+      final sub = container.listen(
+        todoSetListProvider,
+        (prev, next) => next.whenData(events.add),
+      );
       addTearDown(sub.close);
+
+      await waitUntil(() => events.isNotEmpty);
+      events.clear();
 
       await container.read(todoSetRepositoryProvider).delete('a');
       await waitUntil(() => events.isNotEmpty);
@@ -87,21 +116,36 @@ void main() {
     });
 
     test('derives the matching set from the live list', () async {
-      await container.read(todoSetRepositoryProvider).save(buildTodoSet(id: 'a', name: 'Aセット'));
+      await container
+          .read(todoSetRepositoryProvider)
+          .save(buildTodoSet(id: 'a', name: 'Aセット'));
       await container.read(todoSetListProvider.future);
 
       expect(container.read(todoSetProvider('a'))?.name, 'Aセット');
     });
 
     test('updates reactively when the underlying set is edited', () async {
-      await container.read(todoSetRepositoryProvider).save(buildTodoSet(id: 'a', name: '旧名'));
-      await container.read(todoSetListProvider.future);
+      await container
+          .read(todoSetRepositoryProvider)
+          .save(buildTodoSet(id: 'a', name: '旧名'));
 
+      // See the comment in todoSetListProvider's "saved" test above for
+      // why the listener must be registered before any `.future` read —
+      // todoSetProvider derives from todoSetListProvider, so it inherits
+      // the same constraint.
       final events = <TodoSet?>[];
-      final sub = container.listen(todoSetProvider('a'), (prev, next) => events.add(next));
+      final sub = container.listen(
+        todoSetProvider('a'),
+        (prev, next) => events.add(next),
+      );
       addTearDown(sub.close);
 
-      await container.read(todoSetRepositoryProvider).save(buildTodoSet(id: 'a', name: '新名'));
+      await waitUntil(() => events.isNotEmpty);
+      events.clear();
+
+      await container
+          .read(todoSetRepositoryProvider)
+          .save(buildTodoSet(id: 'a', name: '新名'));
       await waitUntil(() => events.isNotEmpty);
 
       expect(events, isNotEmpty);

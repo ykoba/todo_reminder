@@ -202,6 +202,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
         children: [
           TextField(
             controller: _nameController,
+            maxLength: 20,
             decoration: const InputDecoration(
               labelText: 'セット名',
               hintText: '例: 保育園',

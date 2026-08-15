@@ -56,6 +56,7 @@ DailyChecklist buildDailyChecklist({
   required String dateKey,
   List<String>? checkedItemIds,
   DateTime? completedAt,
+  String memo = '',
 }) {
   return DailyChecklist(
     id: id ?? _uuid.v4(),
@@ -63,5 +64,6 @@ DailyChecklist buildDailyChecklist({
     dateKey: dateKey,
     checkedItemIds: checkedItemIds ?? <String>[],
     completedAt: completedAt,
+    memo: memo,
   );
 }
