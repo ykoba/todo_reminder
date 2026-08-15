@@ -21,8 +21,11 @@
 ### 3.1 Todoセットの管理
 - 一覧画面でTodoセットを作成・編集・削除できる。
 - 一覧画面でTodoセットをドラッグして表示順を並び替えられる（`sortOrder` に永続化）。
-- 1セットは「名前」「項目リスト（並び替え可）」「通知時刻」「通知する曜日（複数選択）」
+- 1セットは「名前」「アイコン」「項目リスト（並び替え可）」「通知時刻」「通知する曜日（複数選択）」
   「通知の有効/無効」を持つ。
+- アイコンは、モダンなアウトライン様式のMaterialアイコン20種類（学校・家・買い物・掃除・薬など、
+  Todoの用途を想起させるもの）から選択する。未選択時（新規作成直後、または追加前に保存された
+  既存データ）は「チェックリスト」アイコンが既定値となる。一覧画面の各行に丸いバッジとして表示される。
 - 名前は必須（空文字では保存不可）。項目のうち、ラベルが空のものは保存時に除外される。
 - 削除時は確認ダイアログを表示し、削除と同時に該当セットの予約通知もすべて解除する。
 - 一覧画面のスイッチから通知の有効/無効を素早く切り替えられる（保存後、通知が再スケジュールされる）。
@@ -51,6 +54,8 @@
   （チェック漏れがあっても、ユーザーの判断で完了にできる）。完了後は「完了を取り消す」ボタンで
   取り消せる。
 - 一覧画面では、当日のチェックリストが完了済みかどうかをアイコンで表示する。
+- チェックリスト画面から、そのセットの過去の完了状況を月カレンダーで確認できる
+  （詳細は 8.5 `ChecklistHistoryScreen`）。
 
 ### 3.4 データの独立性
 - Todoセットの項目編集は、過去に記録済みの `DailyChecklist`（各日のチェック状態）に影響しない。
@@ -95,6 +100,7 @@
 | `createdAt` | `DateTime` | 作成日時 |
 | `updatedAt` | `DateTime` | 更新日時 |
 | `sortOrder` | `int` | 一覧画面での表示順（昇順）。フィールド追加前に保存された既存データは読み込み時に `0` として扱われる |
+| `icon` | `String` | 一覧画面に表示するアイコンのキー（`lib/utils/todo_set_icons.dart` の `todoSetIcons` のキー）。フィールド追加前に保存された既存データ、および未知のキーは読み込み時に既定値（`checklist`）として扱われる |
 
 `sortedItems`（getter）は `TodoItem.sortOrder` 昇順にソートした `items` を返す（`TodoSet.sortOrder` とは別物）。
 
@@ -122,6 +128,8 @@
 - `checklist_repository.dart` (`ChecklistRepository`): `daily_checklists` ボックスへのCRUD。
   キーは `"{todoSetId}_{dateKey}"`。`getOrCreate` は当日分が無ければ空の `DailyChecklist` を
   作成して保存する。`toggleItem` / `setCompleted` は即座に該当レコードを保存する。
+  `getAllForTodoSet(todoSetId)` は指定セットの全期間分の `DailyChecklist` を返す
+  （完了履歴カレンダーで使用）。
 
 ## 6. 状態管理 (`lib/providers/`)
 
@@ -135,6 +143,9 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
 - `dailyChecklistProvider(ChecklistKey(todoSetId, dateKey))`: 指定セット・指定日の
   `DailyChecklist` を `Stream<DailyChecklist?>` として公開。`daily_checklists` ボックスの
   変更を監視。呼び出し前に `ChecklistRepository.getOrCreate` でレコードが存在している必要がある。
+- `checklistHistoryProvider(todoSetId)`: 指定セットの全 `DailyChecklist` を
+  `Stream<Map<String, DailyChecklist>>`（キーは `dateKey`）として公開。
+  `ChecklistHistoryScreen` のカレンダー表示に使用。
 - `todoSetRepositoryProvider` / `checklistRepositoryProvider` / `notificationServiceProvider`:
   各サービス・リポジトリのシングルトン提供。
 - `themeModeProvider`（`lib/providers/theme_providers.dart`）: ユーザーが選択した表示テーマ
@@ -178,13 +189,15 @@ TodoSetListScreen（一覧・起点）
   ├─ [+] → TodoSetEditScreen(todoSetId: null)       … 新規作成
   ├─ [編集アイコン] → TodoSetEditScreen(todoSetId: id) … 編集
   └─ [行タップ] / 通知タップ → ChecklistScreen(todoSetId: id)
+                                  └─ [カレンダーアイコン] → ChecklistHistoryScreen(todoSetId: id)
 ```
 
 ### 8.2 `TodoSetListScreen`
 - `todoSetListProvider` を購読し、Todoセットが0件なら案内文、それ以外は `ListTile` の
   リストを表示。
-- 各行に「ドラッグハンドル」「本日完了済みか（アイコン）」「スケジュール概要 ・ 項目数」
-  「有効/無効スイッチ」「編集ボタン」を表示。行タップでチェックリスト画面へ。
+- 各行に「ドラッグハンドル」「セットのアイコン（丸いバッジ）」「本日完了済みか（アイコン）」
+  「スケジュール概要 ・ 項目数」「有効/無効スイッチ」「編集ボタン」を表示。行タップで
+  チェックリスト画面へ。
 - ドラッグハンドルを掴んで並び替えると、`TodoSetRepository.reorder` により表示順が永続化される。
 - 右下のFABから新規作成画面へ遷移。新規セットは常に一覧の末尾に追加される
   （`sortOrder` = 作成時点のセット数）。
@@ -194,7 +207,8 @@ TodoSetListScreen（一覧・起点）
 
 ### 8.3 `TodoSetEditScreen`
 - `todoSetId == null` なら新規作成、それ以外は既存データを読み込んで編集。
-- 入力項目: セット名、通知時刻（`showTimePicker`）、通知曜日（`FilterChip` の複数選択）、
+- 入力項目: セット名、アイコン（20種類から選択する `Wrap` 表示のボタン群。選択中のものは
+  強調表示される）、通知時刻（`showTimePicker`）、通知曜日（`FilterChip` の複数選択）、
   通知の有効/無効（`SwitchListTile`）、項目リスト（`ReorderableListView` でドラッグ並び替え・
   追加・削除）。
 - 保存時にバリデーション（名前必須）を行い、`TodoSetRepository.save` →
@@ -203,11 +217,24 @@ TodoSetListScreen（一覧・起点）
 
 ### 8.4 `ChecklistScreen`
 - 初期化時に当日分の `DailyChecklist` を `getOrCreate` する。
-- タイトルにセット名と `M/d（曜）` 形式の日本語日付を表示。
+- タイトルにセット名と `M/d（曜）` 形式の日本語日付を表示。AppBarのカレンダーアイコンから
+  `ChecklistHistoryScreen(todoSetId: ...)` へ遷移できる。
 - チェック済み件数と進捗バーを表示。
 - 完了済みの場合は「本日は完了しました」というバナーを表示。
 - 各項目を `CheckboxListTile` で表示し、タップで即座にトグル・保存。
 - 画面下部に「完了する」/「完了を取り消す」ボタン（完了状態に応じて切り替え）。
+
+### 8.5 `ChecklistHistoryScreen`
+- 対象Todoセットの完了履歴を月単位のカレンダーで表示する。`checklistHistoryProvider(todoSetId)`
+  （`ChecklistRepository.getAllForTodoSet` を `dateKey` でMap化したもの）を購読。
+- 各日を丸いセルで表示し、完了済み（`isCompleted`）の日は緑色、記録はあるが未完了の日は
+  グレー、今日は枠線で強調する。未来の日付はタップ不可（薄いグレー表示）。
+- 上部の「<」「>」で表示月を移動できる（未来の月へは移動不可）。
+- 日付セルをタップすると、その日の状態（記録なし／未完了／完了）とチェック件数を
+  `SnackBar`（表示時間2秒）で表示する。表示中に別の日をタップした場合は、残り時間を待たず
+  直前の `SnackBar` を即座に閉じて新しい内容をすぐに表示する
+  （`ScaffoldMessenger.clearSnackBars()` の後に `showSnackBar` を呼ぶ）。
+- 下部に凡例（緑=完了、グレー=記録あり・未完了）を表示する。
 
 ## 9. ユーティリティ (`lib/utils/`)
 
@@ -216,6 +243,9 @@ TodoSetListScreen（一覧・起点）
 - `schedule_format.dart`: `weekdayLabels`（1〜7→月〜日の1文字ラベル）、
   `formatTime(hour, minute)`（`HH:mm`）、`scheduleSummary(Schedule)`（例:「毎日 07:00」
   「月水金 07:00」「未設定 07:00」）、`formatJapaneseDate(DateTime)`（例:「8/14（金）」）。
+- `todo_set_icons.dart`: `todoSetIcons`（キー→`IconData` の20件のMap）、
+  `defaultTodoSetIconKey`（`'checklist'`）、`todoSetIcon(key)`（未知のキーなら既定値の
+  アイコンを返すフォールバック付きゲッター）。
 
 ## 10. 非機能・既知の制約
 

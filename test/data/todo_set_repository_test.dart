@@ -30,7 +30,11 @@ void main() {
       await repository.save(first);
       await repository.save(middle);
 
-      expect(repository.getAll().map((s) => s.id).toList(), ['first', 'middle', 'last']);
+      expect(repository.getAll().map((s) => s.id).toList(), [
+        'first',
+        'middle',
+        'last',
+      ]);
     });
   });
 
@@ -60,6 +64,25 @@ void main() {
       expect(sets.length, 1);
       expect(sets.single.name, '新名');
     });
+
+    test(
+      'persists the chosen icon and reflects a later change to it',
+      () async {
+        await repository.save(buildTodoSet(id: 'a', icon: 'school'));
+        expect(repository.getById('a')?.icon, 'school');
+
+        await repository.save(buildTodoSet(id: 'a', icon: 'pets'));
+        expect(repository.getById('a')?.icon, 'pets');
+      },
+    );
+
+    test('persists a re-enabled isEnabled flag', () async {
+      await repository.save(buildTodoSet(id: 'a', isEnabled: false));
+      expect(repository.getById('a')?.isEnabled, isFalse);
+
+      await repository.save(buildTodoSet(id: 'a', isEnabled: true));
+      expect(repository.getById('a')?.isEnabled, isTrue);
+    });
   });
 
   group('delete', () {
@@ -78,22 +101,25 @@ void main() {
   });
 
   group('reorder', () {
-    test('rewrites sortOrder to match each set\'s position in the given list', () async {
-      final a = buildTodoSet(id: 'a', sortOrder: 0);
-      final b = buildTodoSet(id: 'b', sortOrder: 1);
-      final c = buildTodoSet(id: 'c', sortOrder: 2);
-      await repository.save(a);
-      await repository.save(b);
-      await repository.save(c);
+    test(
+      'rewrites sortOrder to match each set\'s position in the given list',
+      () async {
+        final a = buildTodoSet(id: 'a', sortOrder: 0);
+        final b = buildTodoSet(id: 'b', sortOrder: 1);
+        final c = buildTodoSet(id: 'c', sortOrder: 2);
+        await repository.save(a);
+        await repository.save(b);
+        await repository.save(c);
 
-      // Move 'c' to the front: [c, a, b].
-      await repository.reorder([c, a, b]);
+        // Move 'c' to the front: [c, a, b].
+        await repository.reorder([c, a, b]);
 
-      expect(repository.getAll().map((s) => s.id).toList(), ['c', 'a', 'b']);
-      expect(c.sortOrder, 0);
-      expect(a.sortOrder, 1);
-      expect(b.sortOrder, 2);
-    });
+        expect(repository.getAll().map((s) => s.id).toList(), ['c', 'a', 'b']);
+        expect(c.sortOrder, 0);
+        expect(a.sortOrder, 1);
+        expect(b.sortOrder, 2);
+      },
+    );
 
     test('persists the new order for a fresh read', () async {
       final a = buildTodoSet(id: 'a', sortOrder: 0);

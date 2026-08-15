@@ -10,6 +10,7 @@ import 'package:todo_reminder/screens/todo_set_list_screen.dart';
 import 'package:todo_reminder/notifications/notification_service.dart';
 import 'package:todo_reminder/utils/date_key.dart';
 import 'package:todo_reminder/utils/schedule_format.dart';
+import 'package:todo_reminder/utils/todo_set_icons.dart';
 
 import '../support/fixtures.dart';
 import '../support/hive_test_harness.dart';
@@ -36,11 +37,15 @@ void main() {
   });
 
   Future<void> pumpScreen(WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: TodoSetListScreen())));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: TodoSetListScreen())),
+    );
     await settle(tester);
   }
 
-  testWidgets('shows empty-state guidance when there are no TodoSets', (tester) async {
+  testWidgets('shows empty-state guidance when there are no TodoSets', (
+    tester,
+  ) async {
     await pumpScreen(tester);
 
     expect(find.text('右下の + からTodoセットを作成してください'), findsOneWidget);
@@ -52,21 +57,50 @@ void main() {
     expect(find.text(formatJapaneseDate(DateTime.now())), findsOneWidget);
   });
 
-  testWidgets('lists a TodoSet with its name and a schedule/item-count summary', (tester) async {
-    // Seeding via tester.runAsync(): a Hive write made in the plain test zone
-    // before the first pumpWidget deadlocks pumpWidget once a screen
-    // subscribes to that box's watch() stream (as TodoSetListScreen does).
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(
-          id: 'a',
-          name: '保育園',
-          items: [buildTodoItem(), buildTodoItem()],
-          schedule: buildSchedule(hour: 7, minute: 0, repeatDays: [1, 2, 3, 4, 5, 6, 7]),
-        )));
+  testWidgets(
+    'lists a TodoSet with its name and a schedule/item-count summary',
+    (tester) async {
+      // Seeding via tester.runAsync(): a Hive write made in the plain test zone
+      // before the first pumpWidget deadlocks pumpWidget once a screen
+      // subscribes to that box's watch() stream (as TodoSetListScreen does).
+      await tester.runAsync(
+        () => TodoSetRepository().save(
+          buildTodoSet(
+            id: 'a',
+            name: '保育園',
+            items: [buildTodoItem(), buildTodoItem()],
+            schedule: buildSchedule(
+              hour: 7,
+              minute: 0,
+              repeatDays: [1, 2, 3, 4, 5, 6, 7],
+            ),
+          ),
+        ),
+      );
+
+      await pumpScreen(tester);
+
+      expect(find.text('保育園'), findsOneWidget);
+      expect(find.text('毎日 07:00 ・ 2件'), findsOneWidget);
+    },
+  );
+
+  testWidgets('shows the TodoSet\'s chosen icon', (tester) async {
+    await tester.runAsync(
+      () => TodoSetRepository().save(
+        buildTodoSet(id: 'a', name: '保育園', icon: 'school'),
+      ),
+    );
 
     await pumpScreen(tester);
 
-    expect(find.text('保育園'), findsOneWidget);
-    expect(find.text('毎日 07:00 ・ 2件'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byIcon(todoSetIcons['school']!),
+        matching: find.byType(CircleAvatar),
+      ),
+      findsOneWidget,
+    );
   });
 
   // Simulating the actual drag gesture isn't covered here: it would fight
@@ -76,8 +110,12 @@ void main() {
   // and reliably in data/todo_set_repository_test.dart.
   testWidgets('shows a drag handle for reordering on each row', (tester) async {
     await tester.runAsync(() async {
-      await TodoSetRepository().save(buildTodoSet(id: 'a', name: 'A', sortOrder: 0));
-      await TodoSetRepository().save(buildTodoSet(id: 'b', name: 'B', sortOrder: 1));
+      await TodoSetRepository().save(
+        buildTodoSet(id: 'a', name: 'A', sortOrder: 0),
+      );
+      await TodoSetRepository().save(
+        buildTodoSet(id: 'b', name: 'B', sortOrder: 1),
+      );
     });
 
     await pumpScreen(tester);
@@ -85,22 +123,29 @@ void main() {
     expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
   });
 
-  testWidgets('shows a filled check icon when today\'s checklist is already completed', (tester) async {
-    await tester.runAsync(() async {
-      final set = buildTodoSet(id: 'a');
-      await TodoSetRepository().save(set);
-      final checklist = ChecklistRepository().getOrCreate(set, todayKey());
-      await ChecklistRepository().setCompleted(checklist, true);
-    });
+  testWidgets(
+    'shows a filled check icon when today\'s checklist is already completed',
+    (tester) async {
+      await tester.runAsync(() async {
+        final set = buildTodoSet(id: 'a');
+        await TodoSetRepository().save(set);
+        final checklist = ChecklistRepository().getOrCreate(set, todayKey());
+        await ChecklistRepository().setCompleted(checklist, true);
+      });
 
-    await pumpScreen(tester);
+      await pumpScreen(tester);
 
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
-    expect(find.byIcon(Icons.circle_outlined), findsNothing);
-  });
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      expect(find.byIcon(Icons.circle_outlined), findsNothing);
+    },
+  );
 
-  testWidgets('shows an outlined circle icon when today is not completed yet', (tester) async {
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'a')));
+  testWidgets('shows an outlined circle icon when today is not completed yet', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'a')),
+    );
 
     await pumpScreen(tester);
 
@@ -117,25 +162,30 @@ void main() {
   // reliably in data/todo_set_repository_test.dart; here, only that the
   // switch reflects the current isEnabled is checked (read-only).
   testWidgets('switch reflects the set\'s isEnabled value', (tester) async {
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'a', isEnabled: false)));
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'a', isEnabled: false)),
+    );
 
     await pumpScreen(tester);
 
     expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
   });
 
-  testWidgets('theme menu defaults to following the system setting and offers all three options', (tester) async {
-    await pumpScreen(tester);
+  testWidgets(
+    'theme menu defaults to following the system setting and offers all three options',
+    (tester) async {
+      await pumpScreen(tester);
 
-    expect(find.byIcon(Icons.brightness_auto_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.brightness_auto_outlined), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.brightness_auto_outlined));
-    await settle(tester);
+      await tester.tap(find.byIcon(Icons.brightness_auto_outlined));
+      await settle(tester);
 
-    expect(find.text('端末の設定に従う'), findsOneWidget);
-    expect(find.text('ライト'), findsOneWidget);
-    expect(find.text('ダーク'), findsOneWidget);
-  });
+      expect(find.text('端末の設定に従う'), findsOneWidget);
+      expect(find.text('ライト'), findsOneWidget);
+      expect(find.text('ダーク'), findsOneWidget);
+    },
+  );
 
   testWidgets('tapping the FAB opens the create screen', (tester) async {
     await pumpScreen(tester);
@@ -147,18 +197,25 @@ void main() {
     expect(find.text('セットを作成'), findsOneWidget);
   });
 
-  testWidgets('tapping the edit icon opens the edit screen pre-filled with the set name', (tester) async {
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')));
+  testWidgets(
+    'tapping the edit icon opens the edit screen pre-filled with the set name',
+    (tester) async {
+      await tester.runAsync(
+        () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
+      );
 
-    await pumpScreen(tester);
-    await tester.tap(find.byIcon(Icons.edit_outlined));
-    await settle(tester);
+      await pumpScreen(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
 
-    expect(find.text('セットを編集'), findsOneWidget);
-    expect(find.text('保育園'), findsOneWidget);
-  });
+      expect(find.text('セットを編集'), findsOneWidget);
+      expect(find.text('保育園'), findsOneWidget);
+    },
+  );
 
-  testWidgets('tapping a row opens the checklist screen for that set', (tester) async {
+  testWidgets('tapping a row opens the checklist screen for that set', (
+    tester,
+  ) async {
     // Pre-creating today's DailyChecklist here too: ChecklistScreen (the
     // destination) writes one in its own initState() if none exists yet,
     // and a Hive write made during another widget's build phase was

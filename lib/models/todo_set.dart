@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 
+import '../utils/todo_set_icons.dart';
 import 'schedule.dart';
 import 'todo_item.dart';
 
@@ -16,6 +17,7 @@ class TodoSet extends HiveObject {
     required this.createdAt,
     required this.updatedAt,
     required this.sortOrder,
+    this.icon = defaultTodoSetIconKey,
   });
 
   @HiveField(0)
@@ -44,6 +46,13 @@ class TodoSet extends HiveObject {
   @HiveField(7, defaultValue: 0)
   int sortOrder;
 
+  /// Key into [todoSetIcons] for the icon shown for this set in the list.
+  /// Sets created before this field existed default to
+  /// [defaultTodoSetIconKey] on read.
+  @HiveField(8, defaultValue: defaultTodoSetIconKey)
+  String icon;
+
   List<TodoItem> get sortedItems =>
-      List<TodoItem>.from(items)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      List<TodoItem>.from(items)
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 }

@@ -18,23 +18,34 @@ void main() {
   tearDown(() => harness.tearDown());
 
   Future<void> pumpHistory(WidgetTester tester, String todoSetId) async {
-    await tester.pumpWidget(ProviderScope(child: MaterialApp(home: ChecklistHistoryScreen(todoSetId: todoSetId))));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(home: ChecklistHistoryScreen(todoSetId: todoSetId)),
+      ),
+    );
     await settle(tester);
   }
 
-  testWidgets('shows the set name in the title and the current month/weekday headers', (tester) async {
-    final today = DateTime.now();
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')));
+  testWidgets(
+    'shows the set name in the title and the current month/weekday headers',
+    (tester) async {
+      final today = DateTime.now();
+      await tester.runAsync(
+        () => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')),
+      );
 
-    await pumpHistory(tester, 'set-1');
+      await pumpHistory(tester, 'set-1');
 
-    expect(find.text('保育園の完了履歴'), findsOneWidget);
-    expect(find.text('${today.year}年${today.month}月'), findsOneWidget);
-    expect(find.text('月'), findsOneWidget);
-    expect(find.text('日'), findsOneWidget);
-  });
+      expect(find.text('保育園の完了履歴'), findsOneWidget);
+      expect(find.text('${today.year}年${today.month}月'), findsOneWidget);
+      expect(find.text('月'), findsOneWidget);
+      expect(find.text('日'), findsOneWidget);
+    },
+  );
 
-  testWidgets('tapping a completed day shows its status and checked count', (tester) async {
+  testWidgets('tapping a completed day shows its status and checked count', (
+    tester,
+  ) async {
     final today = DateTime.now();
     await tester.runAsync(() async {
       final set = buildTodoSet(id: 'set-1', name: '保育園');
@@ -52,13 +63,18 @@ void main() {
   });
 
   testWidgets('the status toast is shown for 2 seconds', (tester) async {
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')));
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')),
+    );
 
     await pumpHistory(tester, 'set-1');
     await tester.tap(find.text('1'));
     await tester.pump();
 
-    expect(tester.widget<SnackBar>(find.byType(SnackBar)).duration, const Duration(seconds: 2));
+    expect(
+      tester.widget<SnackBar>(find.byType(SnackBar)).duration,
+      const Duration(seconds: 2),
+    );
   });
 
   testWidgets(
@@ -99,7 +115,9 @@ void main() {
   testWidgets('tapping a day with no record shows "記録なし"', (tester) async {
     // Use the 1st of the month, which is never in the future relative to
     // "today" and is always tappable regardless of what day it is run on.
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')));
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')),
+    );
 
     await pumpHistory(tester, 'set-1');
     await tester.tap(find.text('1'));
@@ -109,31 +127,53 @@ void main() {
   });
 
   testWidgets('cannot navigate past the current month', (tester) async {
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')));
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')),
+    );
 
     await pumpHistory(tester, 'set-1');
 
-    expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.chevron_right)).onPressed, isNull);
+    expect(
+      tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.chevron_right),
+          )
+          .onPressed,
+      isNull,
+    );
   });
 
-  testWidgets('the previous-month button moves the header back a month', (tester) async {
+  testWidgets('the previous-month button moves the header back a month', (
+    tester,
+  ) async {
     final today = DateTime.now();
     final previousMonth = DateTime(today.year, today.month - 1);
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')));
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')),
+    );
 
     await pumpHistory(tester, 'set-1');
     await tester.tap(find.widgetWithIcon(IconButton, Icons.chevron_left));
     await settle(tester);
 
-    expect(find.text('${previousMonth.year}年${previousMonth.month}月'), findsOneWidget);
     expect(
-      tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.chevron_right)).onPressed,
+      find.text('${previousMonth.year}年${previousMonth.month}月'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.chevron_right),
+          )
+          .onPressed,
       isNotNull,
     );
   });
 
   testWidgets('shows a legend explaining the day markers', (tester) async {
-    await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')));
+    await tester.runAsync(
+      () => TodoSetRepository().save(buildTodoSet(id: 'set-1', name: '保育園')),
+    );
 
     await pumpHistory(tester, 'set-1');
 

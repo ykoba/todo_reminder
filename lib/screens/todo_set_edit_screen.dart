@@ -7,11 +7,13 @@ import '../models/todo_item.dart';
 import '../models/todo_set.dart';
 import '../providers/repository_providers.dart';
 import '../utils/schedule_format.dart';
+import '../utils/todo_set_icons.dart';
 
 const _uuid = Uuid();
 
 class _EditableItem {
-  _EditableItem({required this.id, required String label}) : controller = TextEditingController(text: label);
+  _EditableItem({required this.id, required String label})
+    : controller = TextEditingController(text: label);
 
   final String id;
   final TextEditingController controller;
@@ -38,6 +40,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   late bool _isEnabled;
   late final DateTime _createdAt;
   late final int _sortOrder;
+  late String _icon;
 
   bool get _isEditing => widget.todoSetId != null;
 
@@ -45,7 +48,9 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   void initState() {
     super.initState();
     final repository = ref.read(todoSetRepositoryProvider);
-    final existing = widget.todoSetId == null ? null : repository.getById(widget.todoSetId!);
+    final existing = widget.todoSetId == null
+        ? null
+        : repository.getById(widget.todoSetId!);
 
     _nameController = TextEditingController(text: existing?.name ?? '');
     _items = (existing?.sortedItems ?? const <TodoItem>[])
@@ -53,11 +58,17 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
         .toList();
     _hour = existing?.schedule.hour ?? 7;
     _minute = existing?.schedule.minute ?? 0;
-    _repeatDays = existing?.schedule.repeatDays.toSet() ?? {1, 2, 3, 4, 5, 6, 7};
+    _repeatDays =
+        existing?.schedule.repeatDays.toSet() ?? {1, 2, 3, 4, 5, 6, 7};
     _isEnabled = existing?.isEnabled ?? true;
     _createdAt = existing?.createdAt ?? DateTime.now();
     // New sets are appended after the current last one in the list order.
     _sortOrder = existing?.sortOrder ?? repository.getAll().length;
+    _icon = existing?.icon ?? defaultTodoSetIconKey;
+  }
+
+  void _selectIcon(String key) {
+    setState(() => _icon = key);
   }
 
   @override
@@ -110,7 +121,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('セット名を入力してください')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('セット名を入力してください')));
       return;
     }
 
@@ -125,11 +137,16 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
       id: widget.todoSetId ?? _uuid.v4(),
       name: name,
       items: labeledItems,
-      schedule: Schedule(hour: _hour, minute: _minute, repeatDays: _repeatDays.toList()..sort()),
+      schedule: Schedule(
+        hour: _hour,
+        minute: _minute,
+        repeatDays: _repeatDays.toList()..sort(),
+      ),
       isEnabled: _isEnabled,
       createdAt: _createdAt,
       updatedAt: DateTime.now(),
       sortOrder: _sortOrder,
+      icon: _icon,
     );
 
     await ref.read(todoSetRepositoryProvider).save(todoSet);
@@ -145,14 +162,22 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
         title: const Text('このセットを削除しますか？'),
         content: const Text('通知の予約も解除されます。この操作は取り消せません。'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('キャンセル')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('削除')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('削除'),
+          ),
         ],
       ),
     );
     if (confirmed != true) return;
 
-    await ref.read(notificationServiceProvider).cancelForTodoSet(widget.todoSetId!);
+    await ref
+        .read(notificationServiceProvider)
+        .cancelForTodoSet(widget.todoSetId!);
     await ref.read(todoSetRepositoryProvider).delete(widget.todoSetId!);
 
     if (mounted) Navigator.of(context).pop();
@@ -165,7 +190,11 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
         title: Text(_isEditing ? 'セットを編集' : 'セットを作成'),
         actions: [
           if (_isEditing)
-            IconButton(icon: const Icon(Icons.delete_outline), tooltip: '削除', onPressed: _confirmDelete),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: '削除',
+              onPressed: _confirmDelete,
+            ),
         ],
       ),
       body: ListView(
@@ -173,9 +202,27 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
         children: [
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(labelText: 'セット名', hintText: '例: 保育園'),
+            decoration: const InputDecoration(
+              labelText: 'セット名',
+              hintText: '例: 保育園',
+            ),
           ),
           const SizedBox(height: 24),
+          Text('アイコン', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final entry in todoSetIcons.entries)
+                _IconOption(
+                  icon: entry.value,
+                  selected: entry.key == _icon,
+                  onTap: () => _selectIcon(entry.key),
+                ),
+            ],
+          ),
+          const Divider(height: 32),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('通知時刻'),
@@ -243,6 +290,38 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
           const SizedBox(height: 24),
           FilledButton(onPressed: _save, child: const Text('保存')),
         ],
+      ),
+    );
+  }
+}
+
+class _IconOption extends StatelessWidget {
+  const _IconOption({
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onTap,
+      child: CircleAvatar(
+        radius: 24,
+        backgroundColor: selected
+            ? colorScheme.primary
+            : colorScheme.surfaceContainerHighest,
+        foregroundColor: selected
+            ? colorScheme.onPrimary
+            : colorScheme.onSurfaceVariant,
+        child: Icon(icon),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:todo_reminder/models/daily_checklist.dart';
 import 'package:todo_reminder/models/schedule.dart';
 import 'package:todo_reminder/models/todo_item.dart';
 import 'package:todo_reminder/models/todo_set.dart';
+import 'package:todo_reminder/utils/todo_set_icons.dart';
 
 const _uuid = Uuid();
 
@@ -12,7 +13,11 @@ TodoItem buildTodoItem({String? id, String label = 'アイテム', int sortOrder
 }
 
 Schedule buildSchedule({int hour = 7, int minute = 0, List<int>? repeatDays}) {
-  return Schedule(hour: hour, minute: minute, repeatDays: repeatDays ?? const [1, 2, 3, 4, 5, 6, 7]);
+  return Schedule(
+    hour: hour,
+    minute: minute,
+    repeatDays: repeatDays ?? const [1, 2, 3, 4, 5, 6, 7],
+  );
 }
 
 TodoSet buildTodoSet({
@@ -24,12 +29,14 @@ TodoSet buildTodoSet({
   DateTime? createdAt,
   DateTime? updatedAt,
   int sortOrder = 0,
+  String icon = defaultTodoSetIconKey,
 }) {
   final createdAtOrDefault = createdAt ?? DateTime(2026, 1, 1);
   return TodoSet(
     id: id ?? _uuid.v4(),
     name: name,
-    items: items ??
+    items:
+        items ??
         [
           buildTodoItem(label: '項目1', sortOrder: 0),
           buildTodoItem(label: '項目2', sortOrder: 1),
@@ -39,6 +46,7 @@ TodoSet buildTodoSet({
     createdAt: createdAtOrDefault,
     updatedAt: updatedAt ?? createdAtOrDefault,
     sortOrder: sortOrder,
+    icon: icon,
   );
 }
 

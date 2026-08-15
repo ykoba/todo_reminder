@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todo_reminder/data/todo_set_repository.dart';
 import 'package:todo_reminder/notifications/notification_service.dart';
 import 'package:todo_reminder/screens/todo_set_edit_screen.dart';
+import 'package:todo_reminder/utils/todo_set_icons.dart';
 
 import '../support/fixtures.dart';
 import '../support/hive_test_harness.dart';
@@ -41,6 +42,7 @@ void main() {
   /// `Navigator.pop()` after save/delete has somewhere to go back to, just
   /// like when it's opened from [TodoSetListScreen].
   Future<void> pumpEdit(WidgetTester tester, {String? todoSetId}) async {
+    useTallTestViewport(tester);
     final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       ProviderScope(
@@ -51,21 +53,34 @@ void main() {
       ),
     );
     navigatorKey.currentState!.push(
-      MaterialPageRoute(builder: (_) => TodoSetEditScreen(todoSetId: todoSetId)),
+      MaterialPageRoute(
+        builder: (_) => TodoSetEditScreen(todoSetId: todoSetId),
+      ),
     );
     await settle(tester);
   }
 
+  Color? avatarBackgroundFor(WidgetTester tester, IconData icon) {
+    final avatarFinder = find.ancestor(
+      of: find.byIcon(icon),
+      matching: find.byType(CircleAvatar),
+    );
+    return tester.widget<CircleAvatar>(avatarFinder).backgroundColor;
+  }
+
   group('creating a new set', () {
-    testWidgets('shows a validation message and saves nothing when the name is empty', (tester) async {
-      await pumpEdit(tester);
+    testWidgets(
+      'shows a validation message and saves nothing when the name is empty',
+      (tester) async {
+        await pumpEdit(tester);
 
-      await tester.tap(find.text('保存'));
-      await tester.pump();
+        await tester.tap(find.text('保存'));
+        await tester.pump();
 
-      expect(find.text('セット名を入力してください'), findsOneWidget);
-      expect(TodoSetRepository().getAll(), isEmpty);
-    });
+        expect(find.text('セット名を入力してください'), findsOneWidget);
+        expect(TodoSetRepository().getAll(), isEmpty);
+      },
+    );
 
     testWidgets('tapping the close icon removes that item row', (tester) async {
       await pumpEdit(tester);
@@ -85,6 +100,46 @@ void main() {
 
       expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
+
+    testWidgets(
+      'offers all 20 icon choices with "checklist" selected by default',
+      (tester) async {
+        await pumpEdit(tester);
+
+        for (final icon in todoSetIcons.values) {
+          expect(find.byIcon(icon), findsOneWidget);
+        }
+        final selectedColor = avatarBackgroundFor(
+          tester,
+          todoSetIcons[defaultTodoSetIconKey]!,
+        );
+        final unselectedColor = avatarBackgroundFor(
+          tester,
+          todoSetIcons['school']!,
+        );
+        expect(selectedColor, isNot(unselectedColor));
+      },
+    );
+
+    testWidgets('tapping a different icon selects it', (tester) async {
+      await pumpEdit(tester);
+      final defaultColor = avatarBackgroundFor(
+        tester,
+        todoSetIcons[defaultTodoSetIconKey]!,
+      );
+
+      await tester.tap(find.byIcon(todoSetIcons['school']!));
+      await settle(tester);
+
+      expect(
+        avatarBackgroundFor(tester, todoSetIcons['school']!),
+        defaultColor,
+      );
+      expect(
+        avatarBackgroundFor(tester, todoSetIcons[defaultTodoSetIconKey]!),
+        isNot(defaultColor),
+      );
+    });
   });
 
   group('editing an existing set', () {
@@ -92,28 +147,57 @@ void main() {
       // Seeding via tester.runAsync(): a Hive write made in the plain test
       // zone before the first pumpWidget has intermittently left later
       // pumpAndSettle() calls in the same test unable to complete.
-      await tester.runAsync(() => TodoSetRepository().save(buildTodoSet(
+      await tester.runAsync(
+        () => TodoSetRepository().save(
+          buildTodoSet(
             id: 'a',
             name: '保育園',
             items: [buildTodoItem(label: '連絡帳', sortOrder: 0)],
             schedule: buildSchedule(hour: 7, minute: 30, repeatDays: [1, 2, 3]),
             isEnabled: false,
-          )));
+            icon: 'school',
+          ),
+        ),
+      );
       await pumpEdit(tester, todoSetId: 'a');
     }
 
-    testWidgets('pre-fills the name, items, time, weekdays, and enabled switch', (tester) async {
-      await seedAndPump(tester);
+    testWidgets(
+      'pre-fills the name, items, time, weekdays, enabled switch, and icon',
+      (tester) async {
+        await seedAndPump(tester);
 
-      expect(find.text('保育園'), findsOneWidget);
-      expect(find.text('連絡帳'), findsOneWidget);
-      expect(find.text('07:30'), findsOneWidget);
-      expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isFalse);
-      expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, '月')).selected, isTrue);
-      expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, '木')).selected, isFalse);
-    });
+        expect(find.text('保育園'), findsOneWidget);
+        expect(find.text('連絡帳'), findsOneWidget);
+        expect(find.text('07:30'), findsOneWidget);
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+          isFalse,
+        );
+        expect(
+          tester
+              .widget<FilterChip>(find.widgetWithText(FilterChip, '月'))
+              .selected,
+          isTrue,
+        );
+        expect(
+          tester
+              .widget<FilterChip>(find.widgetWithText(FilterChip, '木'))
+              .selected,
+          isFalse,
+        );
+        // The seeded set's icon ('school') should be the selected one, visibly
+        // different from an unselected choice.
+        expect(
+          avatarBackgroundFor(tester, todoSetIcons['school']!),
+          isNot(avatarBackgroundFor(tester, todoSetIcons['pets']!)),
+        );
+      },
+    );
 
-    testWidgets('cancelling the delete confirmation keeps the set', (tester) async {
+    testWidgets('cancelling the delete confirmation keeps the set', (
+      tester,
+    ) async {
       await seedAndPump(tester);
 
       await tester.tap(find.byIcon(Icons.delete_outline));

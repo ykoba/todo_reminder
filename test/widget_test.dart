@@ -24,7 +24,9 @@ void main() {
     await harness.tearDown();
   });
 
-  testWidgets('MyApp boots to the TodoSet list empty state without crashing', (tester) async {
+  testWidgets('MyApp boots to the TodoSet list empty state without crashing', (
+    tester,
+  ) async {
     await tester.pumpWidget(const ProviderScope(child: MyApp()));
     await settle(tester);
 

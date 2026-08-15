@@ -8,6 +8,7 @@ import '../providers/theme_providers.dart';
 import '../providers/todo_set_providers.dart';
 import '../utils/date_key.dart';
 import '../utils/schedule_format.dart';
+import '../utils/todo_set_icons.dart';
 import 'checklist_screen.dart';
 import 'todo_set_edit_screen.dart';
 
@@ -30,7 +31,8 @@ class TodoSetListScreen extends ConsumerWidget {
               ThemeMode.system => Icons.brightness_auto_outlined,
             }),
             tooltip: '表示テーマ',
-            onSelected: (mode) => ref.read(themeModeProvider.notifier).setThemeMode(mode),
+            onSelected: (mode) =>
+                ref.read(themeModeProvider.notifier).setThemeMode(mode),
             itemBuilder: (context) => const [
               PopupMenuItem(value: ThemeMode.system, child: Text('端末の設定に従う')),
               PopupMenuItem(value: ThemeMode.light, child: Text('ライト')),
@@ -54,12 +56,11 @@ class TodoSetListScreen extends ConsumerWidget {
           Expanded(
             child: todoSetsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stackTrace) => Center(child: Text('読み込みに失敗しました: $error')),
+              error: (error, stackTrace) =>
+                  Center(child: Text('読み込みに失敗しました: $error')),
               data: (todoSets) {
                 if (todoSets.isEmpty) {
-                  return const Center(
-                    child: Text('右下の + からTodoセットを作成してください'),
-                  );
+                  return const Center(child: Text('右下の + からTodoセットを作成してください'));
                 }
                 return ReorderableListView.builder(
                   buildDefaultDragHandles: false,
@@ -82,7 +83,9 @@ class TodoSetListScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const TodoSetEditScreen(todoSetId: null)),
+          MaterialPageRoute(
+            builder: (_) => const TodoSetEditScreen(todoSetId: null),
+          ),
         ),
         tooltip: 'Todoセットを追加',
         child: const Icon(Icons.add),
@@ -92,7 +95,11 @@ class TodoSetListScreen extends ConsumerWidget {
 }
 
 class _TodoSetTile extends ConsumerWidget {
-  const _TodoSetTile({required super.key, required this.todoSet, required this.index});
+  const _TodoSetTile({
+    required super.key,
+    required this.todoSet,
+    required this.index,
+  });
 
   final TodoSet todoSet;
   final int index;
@@ -100,13 +107,19 @@ class _TodoSetTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final checklistAsync = ref.watch(
-      dailyChecklistProvider(ChecklistKey(todoSetId: todoSet.id, dateKey: todayKey())),
+      dailyChecklistProvider(
+        ChecklistKey(todoSetId: todoSet.id, dateKey: todayKey()),
+      ),
     );
     final isCompletedToday = checklistAsync.valueOrNull?.isCompleted ?? false;
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return ListTile(
       title: Text(todoSet.name),
-      subtitle: Text('${scheduleSummary(todoSet.schedule)} ・ ${todoSet.items.length}件'),
+      subtitle: Text(
+        '${scheduleSummary(todoSet.schedule)} ・ ${todoSet.items.length}件',
+      ),
       leading: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -114,7 +127,14 @@ class _TodoSetTile extends ConsumerWidget {
             index: index,
             child: const Icon(Icons.drag_handle),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: colorScheme.primaryContainer,
+            foregroundColor: colorScheme.onPrimaryContainer,
+            child: Icon(todoSetIcon(todoSet.icon), size: 20),
+          ),
+          const SizedBox(width: 8),
           isCompletedToday
               ? const Icon(Icons.check_circle, color: Colors.green)
               : const Icon(Icons.circle_outlined),
@@ -128,20 +148,26 @@ class _TodoSetTile extends ConsumerWidget {
             onChanged: (enabled) async {
               todoSet.isEnabled = enabled;
               await ref.read(todoSetRepositoryProvider).save(todoSet);
-              await ref.read(notificationServiceProvider).scheduleForTodoSet(todoSet);
+              await ref
+                  .read(notificationServiceProvider)
+                  .scheduleForTodoSet(todoSet);
             },
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: '編集',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => TodoSetEditScreen(todoSetId: todoSet.id)),
+              MaterialPageRoute(
+                builder: (_) => TodoSetEditScreen(todoSetId: todoSet.id),
+              ),
             ),
           ),
         ],
       ),
       onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ChecklistScreen(todoSetId: todoSet.id)),
+        MaterialPageRoute(
+          builder: (_) => ChecklistScreen(todoSetId: todoSet.id),
+        ),
       ),
     );
   }
