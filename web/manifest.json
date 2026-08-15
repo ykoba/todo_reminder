@@ -1,11 +1,11 @@
 {
-    "name": "todo_reminder",
-    "short_name": "todo_reminder",
+    "name": "持ち物リマインダー",
+    "short_name": "持ち物リマインダー",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#673AB7",
     "theme_color": "#673AB7",
-    "description": "A new Flutter project.",
+    "description": "保育園の持ち物確認など、毎日のチェックリストをリマインドするアプリ。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

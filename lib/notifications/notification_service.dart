@@ -8,8 +8,8 @@ import 'package:timezone/timezone.dart' as tz;
 import '../models/todo_set.dart';
 
 const String _androidChannelId = 'todo_reminder_channel';
-const String _androidChannelName = 'Todoリマインダー';
-const String _androidChannelDescription = '指定した時刻にTodoリストを通知します';
+const String _androidChannelName = '持ち物リマインダー';
+const String _androidChannelDescription = '指定した時刻に持ち物リストを通知します';
 
 /// Wraps flutter_local_notifications to schedule one recurring notification
 /// per (TodoSet, weekday) pair. A TodoSet's notification content is fixed at

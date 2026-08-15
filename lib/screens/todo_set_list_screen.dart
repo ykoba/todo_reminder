@@ -8,9 +8,12 @@ import '../providers/todo_set_providers.dart';
 import '../utils/schedule_format.dart';
 import '../utils/todo_set_icons.dart';
 import 'checklist_screen.dart';
+import 'privacy_policy_screen.dart';
 import 'todo_set_edit_screen.dart';
 
 enum _ListMode { normal, reordering, editing }
+
+enum _MenuAction { themeSystem, themeLight, themeDark, privacyPolicy }
 
 class TodoSetListScreen extends ConsumerStatefulWidget {
   const TodoSetListScreen({super.key});
@@ -33,36 +36,62 @@ class _TodoSetListScreenState extends ConsumerState<TodoSetListScreen> {
         title: Text(switch (_mode) {
           _ListMode.reordering => '並び替え',
           _ListMode.editing => '編集',
-          _ListMode.normal => 'Todoリマインダー',
+          _ListMode.normal => '持ち物リマインダー',
         }),
         actions: isNormal
             ? [
-                IconButton(
-                  icon: const Icon(Icons.sort),
-                  tooltip: '並び替え',
-                  onPressed: () => setState(() => _mode = _ListMode.reordering),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'セットを編集',
-                  onPressed: () => setState(() => _mode = _ListMode.editing),
-                ),
-                PopupMenuButton<ThemeMode>(
+                // Theme selection and the privacy policy link are both
+                // app-level settings rather than list actions, so they
+                // share a single overflow menu (the common Material
+                // pattern for grouping secondary actions) instead of each
+                // getting their own AppBar icon.
+                PopupMenuButton<_MenuAction>(
                   icon: Icon(switch (themeMode) {
                     ThemeMode.light => Icons.light_mode_outlined,
                     ThemeMode.dark => Icons.dark_mode_outlined,
                     ThemeMode.system => Icons.brightness_auto_outlined,
                   }),
-                  tooltip: '表示テーマ',
-                  onSelected: (mode) =>
-                      ref.read(themeModeProvider.notifier).setThemeMode(mode),
+                  tooltip: '設定',
+                  onSelected: (action) {
+                    switch (action) {
+                      case _MenuAction.themeSystem:
+                        ref
+                            .read(themeModeProvider.notifier)
+                            .setThemeMode(ThemeMode.system);
+                      case _MenuAction.themeLight:
+                        ref
+                            .read(themeModeProvider.notifier)
+                            .setThemeMode(ThemeMode.light);
+                      case _MenuAction.themeDark:
+                        ref
+                            .read(themeModeProvider.notifier)
+                            .setThemeMode(ThemeMode.dark);
+                      case _MenuAction.privacyPolicy:
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PrivacyPolicyScreen(),
+                          ),
+                        );
+                    }
+                  },
                   itemBuilder: (context) => const [
                     PopupMenuItem(
-                      value: ThemeMode.system,
+                      value: _MenuAction.themeSystem,
                       child: Text('端末の設定に従う'),
                     ),
-                    PopupMenuItem(value: ThemeMode.light, child: Text('ライト')),
-                    PopupMenuItem(value: ThemeMode.dark, child: Text('ダーク')),
+                    PopupMenuItem(
+                      value: _MenuAction.themeLight,
+                      child: Text('ライト'),
+                    ),
+                    PopupMenuItem(
+                      value: _MenuAction.themeDark,
+                      child: Text('ダーク'),
+                    ),
+                    PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: _MenuAction.privacyPolicy,
+                      child: Text('プライバシーポリシー'),
+                    ),
                   ],
                 ),
               ]
@@ -107,15 +136,39 @@ class _TodoSetListScreenState extends ConsumerState<TodoSetListScreen> {
           );
         },
       ),
+      // Sort/edit sit as smaller satellite FABs stacked above the main add
+      // FAB — the common Material pattern for a couple of secondary actions
+      // clustered around a screen's primary action — rather than as AppBar
+      // icons, which were competing for attention with the app title.
       floatingActionButton: isNormal
-          ? FloatingActionButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const TodoSetEditScreen(todoSetId: null),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'reorder',
+                  onPressed: () => setState(() => _mode = _ListMode.reordering),
+                  tooltip: '並び替え',
+                  child: const Icon(Icons.sort),
                 ),
-              ),
-              tooltip: 'Todoセットを追加',
-              child: const Icon(Icons.add),
+                const SizedBox(height: 12),
+                FloatingActionButton.small(
+                  heroTag: 'edit',
+                  onPressed: () => setState(() => _mode = _ListMode.editing),
+                  tooltip: 'セットを編集',
+                  child: const Icon(Icons.edit_outlined),
+                ),
+                const SizedBox(height: 16),
+                FloatingActionButton(
+                  heroTag: 'add',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const TodoSetEditScreen(todoSetId: null),
+                    ),
+                  ),
+                  tooltip: 'Todoセットを追加',
+                  child: const Icon(Icons.add),
+                ),
+              ],
             )
           : null,
     );

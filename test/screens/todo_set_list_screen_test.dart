@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todo_reminder/data/checklist_repository.dart';
 import 'package:todo_reminder/data/todo_set_repository.dart';
 import 'package:todo_reminder/screens/checklist_screen.dart';
+import 'package:todo_reminder/screens/privacy_policy_screen.dart';
 import 'package:todo_reminder/screens/todo_set_edit_screen.dart';
 import 'package:todo_reminder/screens/todo_set_list_screen.dart';
 import 'package:todo_reminder/notifications/notification_service.dart';
@@ -179,8 +180,8 @@ void main() {
       await settle(tester);
 
       expect(find.byIcon(Icons.drag_handle), findsNothing);
-      expect(find.text('Todoリマインダー'), findsOneWidget);
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.text('持ち物リマインダー'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNWidgets(3));
     });
 
     testWidgets('hides the FAB and edit button while reordering', (
@@ -201,7 +202,7 @@ void main() {
 
   group('edit mode', () {
     testWidgets(
-      'hides the edit button on each row until edit mode is entered via the AppBar edit button',
+      'hides the edit button on each row until edit mode is entered via the edit FAB',
       (tester) async {
         await tester.runAsync(
           () => TodoSetRepository().save(buildTodoSet(id: 'a', name: '保育園')),
@@ -211,7 +212,7 @@ void main() {
         expect(
           find.byIcon(Icons.edit_outlined),
           findsOneWidget,
-        ); // AppBar toggle only
+        ); // edit FAB only
 
         await tester.tap(find.byIcon(Icons.edit_outlined));
         await settle(tester);
@@ -238,8 +239,8 @@ void main() {
       await tester.tap(find.text('完了'));
       await settle(tester);
 
-      expect(find.text('Todoリマインダー'), findsOneWidget);
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.text('持ち物リマインダー'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNWidgets(3));
     });
 
     testWidgets('hides the FAB and sort button while editing', (tester) async {
@@ -291,26 +292,64 @@ void main() {
     );
   });
 
-  testWidgets(
-    'theme menu defaults to following the system setting and offers all three options',
-    (tester) async {
-      await pumpScreen(tester);
+  group('settings menu', () {
+    // Theme selection and the privacy policy link are app-level settings,
+    // so they're grouped into a single overflow menu rather than each
+    // getting their own AppBar icon.
+    testWidgets(
+      'defaults to following the system setting and offers all three theme options plus the privacy policy link',
+      (tester) async {
+        await pumpScreen(tester);
 
-      expect(find.byIcon(Icons.brightness_auto_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.brightness_auto_outlined), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.brightness_auto_outlined));
+        await settle(tester);
+
+        expect(find.text('端末の設定に従う'), findsOneWidget);
+        expect(find.text('ライト'), findsOneWidget);
+        expect(find.text('ダーク'), findsOneWidget);
+        expect(find.text('プライバシーポリシー'), findsOneWidget);
+      },
+    );
+
+    testWidgets('tapping プライバシーポリシー opens the privacy policy screen', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
 
       await tester.tap(find.byIcon(Icons.brightness_auto_outlined));
       await settle(tester);
+      await tester.tap(find.text('プライバシーポリシー'));
+      await settle(tester);
 
-      expect(find.text('端末の設定に従う'), findsOneWidget);
-      expect(find.text('ライト'), findsOneWidget);
-      expect(find.text('ダーク'), findsOneWidget);
-    },
-  );
+      expect(find.byType(PrivacyPolicyScreen), findsOneWidget);
+    });
+  });
 
-  testWidgets('tapping the FAB opens the create screen', (tester) async {
+  testWidgets('the reorder and edit FABs are smaller than the main add FAB', (
+    tester,
+  ) async {
     await pumpScreen(tester);
 
-    await tester.tap(find.byType(FloatingActionButton));
+    final addSize = tester.getSize(
+      find.widgetWithIcon(FloatingActionButton, Icons.add),
+    );
+    final sortSize = tester.getSize(
+      find.widgetWithIcon(FloatingActionButton, Icons.sort),
+    );
+    final editSize = tester.getSize(
+      find.widgetWithIcon(FloatingActionButton, Icons.edit_outlined),
+    );
+
+    expect(sortSize.width, lessThan(addSize.width));
+    expect(editSize.width, lessThan(addSize.width));
+  });
+
+  testWidgets('tapping the add FAB opens the create screen', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.widgetWithIcon(FloatingActionButton, Icons.add));
     await settle(tester);
 
     expect(find.byType(TodoSetEditScreen), findsOneWidget);
