@@ -11,7 +11,7 @@
 | 用語 | 説明 |
 |---|---|
 | Todoセット (`TodoSet`) | 名前・持ち物リスト・通知スケジュールをまとめたチェックリストのテンプレート |
-| 持ち物 (`TodoItem`) | Todoセットを構成する1件のチェック対象（例:「連絡帳」） |
+| 持ち物 (`TodoItem`) | Todoセットを構成する1件のチェック対象（例:「ハンカチ」） |
 | スケジュール (`Schedule`) | 通知を発火させる時刻と曜日の組 |
 | 日次チェックリスト (`DailyChecklist`) | あるTodoセットの、ある1日分のチェック状態の記録 |
 | 日付キー (`dateKey`) | `yyyy-MM-dd` 形式のローカル日付文字列。`DailyChecklist` を日に紐づけるキー |
@@ -40,7 +40,7 @@
 
 ### 3.2 通知
 - Todoセットごとに、選択された曜日の数だけ「毎週同じ曜日・同じ時刻」の繰り返し通知を予約する。
-- 通知の本文には「{セット名}の持ち物を確認しましょう！」（例:「保育園の持ち物を確認しましょう！」）
+- 通知の本文には「{セット名}の持ち物を確認しましょう！」（例:「仕事の持ち物を確認しましょう！」）
   を表示し、前向きにチェックを促す。タイトルは引き続きセット名のみ。
 - 次のいずれかが起きた場合、そのセットの予約済み通知はすべて解除され、現在の内容で再作成される
   （= 常に最新の持ち物・時刻・曜日・有効状態を反映する）。
@@ -100,9 +100,18 @@
 ### 4.2 `Schedule`
 | フィールド | 型 | 説明 |
 |---|---|---|
-| `hour` | `int` | 通知時刻（時） |
-| `minute` | `int` | 通知時刻（分） |
+| `times` | `List<ScheduleTime>` | 通知時刻のリスト（1日に複数時刻を設定可能。各要素は `hour`/`minute` を持つ） |
 | `repeatDays` | `List<int>` | 通知する曜日。`DateTime.weekday` 準拠（1=月 〜 7=日） |
+| `intervalWeeks` | `int` | 通知の間隔（週）。`1`=毎週（既定）、`2`=隔週。編集画面が公開しているのはこの2択のみ |
+| `anchorDate` | `DateTime` | `intervalWeeks > 1` のときに、どの週が「オン」かを決める基準日（内部的には `anchorDateMillis`（エポックミリ秒、`int`）として保存。`DateTime` のコンストラクタが `const` ではなく Hiveの`defaultValue`に使えないための実装上の都合）。`intervalWeeks` が `1` のときは未使用 |
+
+`isActiveOnWeekOf(DateTime)`（メソッド）は、指定した日を含む週（月曜始まり）がこのスケジュールの「オンの週」かどうかを返す。`intervalWeeks` が `1` のときは常に `true`。`anchorDate` の週からの経過週数を `intervalWeeks` で割った余りが `0` の週がオンになる。
+
+### `ScheduleTime`
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `hour` | `int` | 時 |
+| `minute` | `int` | 分 |
 
 ### 4.3 `TodoSet`
 | フィールド | 型 | 説明 |
@@ -200,13 +209,30 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
 - **初期化 (`init`)**: タイムゾーンDBの初期化とローカルタイムゾーンの設定、Android通知
   チャンネル（`todo_reminder_channel`）の作成、通知タップ時のコールバック登録を行う。
 - **スケジューリング (`scheduleForTodoSet`)**: 対象セットの通知をいったんすべて解除した上で、
-  `schedule.repeatDays` に含まれる各曜日について1件ずつ `zonedSchedule` を呼び出す
-  （`matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime` により毎週繰り返す）。
+  `schedule.repeatDays × schedule.times`（曜日 × 時刻）の組み合わせごとに通知を組み立てる。
   通知の `payload` にはTodoセットのIDを設定し、タップ時にどのセットを開くか判別する。
   Android側は `androidScheduleMode: exactAllowWhileIdle`（正確なアラーム、低電力モードでも発火）。
-- **解除 (`cancelForTodoSet`)**: 曜日1〜7それぞれの通知IDに対して `cancel` を呼ぶ。
+  組み立て方は `schedule.intervalWeeks` によって2通りに分かれる。
+  - **`intervalWeeks == 1`（毎週、既定）**: 1件の `zonedSchedule` を
+    `matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime` 付きで呼ぶ。OS側が
+    「毎週その曜日・時刻」に無期限で繰り返してくれるため、アプリを開かなくても鳴り続ける。
+  - **`intervalWeeks > 1`（隔週など）**: OS標準のトリガーには「N週間ごと」に対応する
+    繰り返し指定が存在しないため、`Schedule.isActiveOnWeekOf` で「オンの週」に該当する
+    今後の発火日時を `_biweeklyWindowCount`（8件）分だけ計算し、それぞれ
+    `matchDateTimeComponents` を付けない単発の `zonedSchedule` として個別に予約する
+    （1件ごとに `intervalWeeks * 7` 日ずつ先の日時になる）。8件はおよそ数か月分の予約に
+    相当し、アプリを開くたびに（`lib/app.dart` の起動処理から）`scheduleForTodoSet` を
+    呼び直して予約分を継ぎ足す（詳細は8.が続く前の本文）。長期間アプリを開かないと、
+    この予約分を使い切った時点で通知が止まる可能性がある。
+- **解除 (`cancelForTodoSet`)**: 直前のスケジュールが何曜日・何時刻・何件の予約を持っていたかは
+  分からないため、想定しうる全ID空間（曜日1〜7 × `maxTimesPerDay`（6）× 隔週用の
+  occurrenceIndex（8）＝ 336通り）に対して `cancel` を呼ぶ。存在しないIDへの `cancel` は
+  無害（何もしない）。
 - **通知ID (`_notificationId`)**: `todoSetId` 文字列からの簡易ハッシュ（31進の畳み込み、
-  `0x7FFFFFFF` でマスク）と曜日番号から一意なID `(hash % 1_000_000) * 10 + weekday` を生成する。
+  `0x7FFFFFFF` でマスク）・曜日・時刻のインデックス（`schedule.times`内の何番目か）・
+  隔週スケジュールにおける発火回のインデックスから、一意なID
+  `(hash % 1_000_000) * 1000 + weekday * 100 + timeIndex * 10 + occurrenceIndex` を生成する。
+  `intervalWeeks == 1` のときは `occurrenceIndex` は常に `0`（OS側が繰り返すため1件のみ）。
   Dartの `String.hashCode` はSDKバージョン間で安定性が保証されないため使用しない。
 - **タップ検知**:
   - アプリ実行中: `onDidReceiveNotificationResponse` → `onTodoSetSelected`
@@ -217,9 +243,12 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
   alert/badge/soundの許可を要求する。
 
 `lib/app.dart` の `_MyAppState` が、初回フレーム後に権限要求 →
-`getLaunchTodoSetId()` の確認（起動遷移）→ `onTodoSetSelected` の購読（実行中の遷移）
-の順で初期化し、いずれの経路でも `ChecklistScreen(todoSetId: ...)` を
-`rootNavigatorKey` 経由でプッシュする。
+`getLaunchTodoSetId()` の確認（起動遷移）→ `onTodoSetSelected` の購読（実行中の遷移）→
+保存済み全Todoセットの `scheduleForTodoSet` 再実行、の順で初期化し、いずれの通知タップ
+経路でも `ChecklistScreen(todoSetId: ...)` を `rootNavigatorKey` 経由でプッシュする。
+最後の全件再スケジュールは、隔週スケジュールの予約分（ローリングウィンドウ）を
+アプリを開くたびに継ぎ足すためのもの（上記参照）。同じフレームで
+`ReviewPromptService.recordAppOpenAndMaybePromptReview()` も呼ばれる（詳細は 9. レビュー依頼）。
 
 ## 8. 画面仕様 (`lib/screens/`)
 
@@ -365,18 +394,42 @@ TodoSetListScreen（一覧・起点）
   `SingleChildScrollView` で表示する静的な画面。`PackageInfo.fromPlatform()` は非同期のため
   `FutureBuilder` で待ち、取得できるまでバージョン行は表示しない。
 
-## 9. ユーティリティ (`lib/utils/`)
+## 9. レビュー依頼 (`lib/data/usage_tracker.dart`, `lib/data/review_prompt_service.dart`)
+
+継続してアプリを使ってくれているユーザーに、適切なタイミングでストアレビューを促す仕組み。
+「連続達成日数」ではなく「連続してアプリを開いた日数」を条件にしている（達成の有無に関わらず
+毎日の起動そのものを継続利用のシグナルとして扱う、シンプルで実装が堅牢な設計）。
+
+- **`UsageStreakTracker`**: `recordOpenToday()` が呼ばれるたびに、`settings` ボックスに
+  保存された「最後に開いた日」と比較する。前日に開いていれば連続日数を+1、当日すでに
+  記録済みなら変更なし、それ以外（間が空いた・初回）なら連続日数を1にリセットして、
+  結果の連続日数を返す。
+- **`ReviewPromptService`**: `recordAppOpenAndMaybePromptReview()` が `UsageStreakTracker`
+  を呼んで連続日数を更新し、その値が `reviewPromptStreakThreshold`（7日）に達していて、
+  かつまだ一度もレビュー依頼をしていなければ、`in_app_review` パッケージ経由でOS標準の
+  ストアレビューダイアログ（iOS: `SKStoreReviewController`、Android: Play In-App Review
+  API）を表示する。一度リクエストしたら `settings` ボックスにフラグを保存し、以降は
+  （連続日数が途切れて再度伸びても）二度と表示しない。`InAppReview.isAvailable()` が
+  `false` を返した場合は依頼済みフラグを立てず、次回起動時に再試行する。
+- 実際の `InAppReview` プラグイン呼び出しは `ReviewRequester`（抽象クラス）越しに行う
+  ことで、プラグイン自体にテスト用のモックAPIが無くても `ReviewPromptService` 単体を
+  プラットフォームチャンネルなしでテストできるようにしている。
+- `lib/app.dart` の `_MyAppState` が、起動処理の一部として毎回
+  `recordAppOpenAndMaybePromptReview()` を呼ぶ。
+
+## 10. ユーティリティ (`lib/utils/`)
 
 - `date_key.dart`: `dateKeyFor(DateTime)` / `todayKey()` — ローカル日付を `yyyy-MM-dd`
   文字列に変換する。時刻・タイムゾーンの影響を受けず「暦日」を一意に識別するために使う。
 - `schedule_format.dart`: `weekdayLabels`（1〜7→月〜日の1文字ラベル）、
   `formatTime(hour, minute)`（`HH:mm`）、`scheduleSummary(Schedule)`（例:「毎日 07:00」
-  「月水金 07:00」「未設定 07:00」）、`formatJapaneseDate(DateTime)`（例:「8/14（金）」）。
+  「月水金 07:00・18:30」「隔週 毎日 07:00」「未設定 07:00」）、
+  `formatJapaneseDate(DateTime)`（例:「8/14（金）」）。
 - `todo_set_icons.dart`: `todoSetIcons`（キー→`IconData` の20件のMap）、
   `defaultTodoSetIconKey`（`'checklist'`）、`todoSetIcon(key)`（未知のキーなら既定値の
   アイコンを返すフォールバック付きゲッター）。
 
-## 10. 非機能・既知の制約
+## 11. 非機能・既知の制約
 
 - ローカル完結のアプリであり、サーバー同期・複数端末間の共有機能はない。機種変更や再インストールに
   備えるには、設定画面の「バックアップ」→「バックアップを作成」でJSONファイルを書き出して
@@ -384,10 +437,13 @@ TodoSetListScreen（一覧・起点）
   （詳細は 5. `BackupService`）。
 - 通知本文はスケジュール時点の持ち物内容で固定される。持ち物編集後は `scheduleForTodoSet`
   による再スケジュールで最新化されるが、それ以前に発火済みの通知の表示内容は変わらない。
-- 通知の繰り返しは「毎週同じ曜日・時刻」に固定で、隔週・月次などの指定はできない。
+- 通知は1日に複数時刻・隔週での繰り返しに対応する（月次などさらに長い間隔は非対応）。ただし
+  隔週以上の間隔にはOS標準の無期限リピートが使えないため、直近8回分だけを予約する
+  ローリングウィンドウ方式になっている（詳細は 7. 通知実装）。長期間（おおよそ数か月以上）
+  アプリを一度も開かないと、その間はこの予約分を使い切り、通知が止まる可能性がある。
 - タイムゾーンは端末のローカルタイムゾーンを起動時に一度取得して使用する。
 
-## 11. テスト
+## 12. テスト
 
 - `test/widget_test.dart`: 一時ディレクトリにHiveを初期化し、Todoセットが0件のときに
   一覧画面が案内文を表示することを確認するウィジェットテスト。

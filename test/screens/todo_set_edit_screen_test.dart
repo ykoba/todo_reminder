@@ -254,5 +254,76 @@ void main() {
       expect(TodoSetRepository().getById('a'), isNotNull);
       expect(find.byType(TodoSetEditScreen), findsOneWidget);
     });
+
+    testWidgets('pre-fills 隔週 when the seeded schedule has intervalWeeks 2', (
+      tester,
+    ) async {
+      await tester.runAsync(
+        () => TodoSetRepository().save(
+          buildTodoSet(
+            id: 'b',
+            items: [buildTodoItem(sortOrder: 0)],
+            schedule: buildSchedule(repeatDays: [1], intervalWeeks: 2),
+          ),
+        ),
+      );
+      await pumpEdit(tester, todoSetId: 'b');
+
+      expect(
+        tester
+            .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+            .selected,
+        {2},
+      );
+    });
+  });
+
+  group('notification times and frequency', () {
+    testWidgets('a new set starts with a single default time and 毎週 selected', (
+      tester,
+    ) async {
+      await pumpEdit(tester);
+
+      expect(find.text('07:00'), findsOneWidget);
+      expect(
+        tester
+            .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+            .selected,
+        {1},
+      );
+    });
+
+    testWidgets('tapping 隔週 selects it', (tester) async {
+      await pumpEdit(tester);
+
+      await tester.tap(find.text('隔週'));
+      await settle(tester);
+
+      expect(
+        tester
+            .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+            .selected,
+        {2},
+      );
+    });
+
+    testWidgets(
+      'removing the only notification time shows a validation message on save',
+      (tester) async {
+        await pumpEdit(tester);
+        await tester.enterText(find.byType(TextField).first, '保育園');
+        await tester.tap(find.text('持ち物を追加'));
+        await settle(tester);
+        await tester.enterText(find.byType(TextField).at(1), '連絡帳');
+
+        await tester.tap(find.byIcon(Icons.remove_circle_outline));
+        await settle(tester);
+        await tester.tap(find.text('保存'));
+        await tester.pump();
+
+        expect(find.text('通知時刻を1つ以上設定してください'), findsOneWidget);
+        expect(TodoSetRepository().getAll(), isEmpty);
+      },
+    );
   });
 }

@@ -12,11 +12,19 @@ TodoItem buildTodoItem({String? id, String label = 'アイテム', int sortOrder
   return TodoItem(id: id ?? _uuid.v4(), label: label, sortOrder: sortOrder);
 }
 
-Schedule buildSchedule({int hour = 7, int minute = 0, List<int>? repeatDays}) {
+Schedule buildSchedule({
+  int hour = 7,
+  int minute = 0,
+  List<ScheduleTime>? times,
+  List<int>? repeatDays,
+  int intervalWeeks = 1,
+  DateTime? anchorDate,
+}) {
   return Schedule(
-    hour: hour,
-    minute: minute,
+    times: times ?? [ScheduleTime(hour: hour, minute: minute)],
     repeatDays: repeatDays ?? const [1, 2, 3, 4, 5, 6, 7],
+    intervalWeeks: intervalWeeks,
+    anchorDate: anchorDate,
   );
 }
 

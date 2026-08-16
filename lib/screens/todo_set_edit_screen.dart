@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../models/schedule.dart';
 import '../models/todo_item.dart';
 import '../models/todo_set.dart';
+import '../notifications/notification_service.dart' show maxTimesPerDay;
 import '../providers/repository_providers.dart';
 import '../utils/schedule_format.dart';
 import '../utils/todo_set_icons.dart';
@@ -34,9 +35,10 @@ class TodoSetEditScreen extends ConsumerStatefulWidget {
 class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   late final TextEditingController _nameController;
   late final List<_EditableItem> _items;
-  late int _hour;
-  late int _minute;
+  late List<TimeOfDay> _times;
   late Set<int> _repeatDays;
+  late int _intervalWeeks;
+  late DateTime _anchorDate;
   late bool _isEnabled;
   late final DateTime _createdAt;
   late final int _sortOrder;
@@ -56,10 +58,15 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     _items = (existing?.sortedItems ?? const <TodoItem>[])
         .map((item) => _EditableItem(id: item.id, label: item.label))
         .toList();
-    _hour = existing?.schedule.hour ?? 7;
-    _minute = existing?.schedule.minute ?? 0;
+    _times =
+        existing?.schedule.times
+            .map((t) => TimeOfDay(hour: t.hour, minute: t.minute))
+            .toList() ??
+        [const TimeOfDay(hour: 7, minute: 0)];
     _repeatDays =
         existing?.schedule.repeatDays.toSet() ?? {1, 2, 3, 4, 5, 6, 7};
+    _intervalWeeks = existing?.schedule.intervalWeeks ?? 1;
+    _anchorDate = existing?.schedule.anchorDate ?? DateTime.now();
     _isEnabled = existing?.isEnabled ?? true;
     _createdAt = existing?.createdAt ?? DateTime.now();
     // New sets are appended after the current last one in the list order.
@@ -95,17 +102,79 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     });
   }
 
-  Future<void> _pickTime() async {
+  void _sortTimes() {
+    _times.sort(
+      (a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute),
+    );
+  }
+
+  bool _isDuplicateTime(TimeOfDay time, {int? ignoringIndex}) {
+    for (var i = 0; i < _times.length; i++) {
+      if (i == ignoringIndex) continue;
+      if (_times[i].hour == time.hour && _times[i].minute == time.minute) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _addTime() async {
+    if (_times.length >= maxTimesPerDay) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('通知時刻は最大$maxTimesPerDay件までです')));
+      return;
+    }
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: _hour, minute: _minute),
+      initialTime: const TimeOfDay(hour: 7, minute: 0),
     );
-    if (picked != null) {
-      setState(() {
-        _hour = picked.hour;
-        _minute = picked.minute;
-      });
+    if (picked == null || !mounted) return;
+    if (_isDuplicateTime(picked)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('その時刻はすでに追加されています')));
+      return;
     }
+    setState(() {
+      _times.add(picked);
+      _sortTimes();
+    });
+  }
+
+  Future<void> _editTime(int index) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _times[index],
+    );
+    if (picked == null || !mounted) return;
+    if (_isDuplicateTime(picked, ignoringIndex: index)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('その時刻はすでに追加されています')));
+      return;
+    }
+    setState(() {
+      _times[index] = picked;
+      _sortTimes();
+    });
+  }
+
+  void _removeTime(int index) {
+    setState(() => _times.removeAt(index));
+  }
+
+  void _setIntervalWeeks(int weeks) {
+    setState(() {
+      // Starting a 隔週 (or wider) cadence from a 毎週 one anchors the
+      // parity to "this week" rather than to whatever anchorDate was left
+      // over from the set's creation, so switching it on always means "the
+      // next matching day is included," matching what a user would expect.
+      if (weeks != 1 && _intervalWeeks == 1) {
+        _anchorDate = DateTime.now();
+      }
+      _intervalWeeks = weeks;
+    });
   }
 
   void _toggleWeekday(int weekday) {
@@ -123,6 +192,13 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     if (name.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('セット名を入力してください')));
+      return;
+    }
+
+    if (_times.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('通知時刻を1つ以上設定してください')));
       return;
     }
 
@@ -144,9 +220,12 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
       name: name,
       items: labeledItems,
       schedule: Schedule(
-        hour: _hour,
-        minute: _minute,
+        times: _times
+            .map((t) => ScheduleTime(hour: t.hour, minute: t.minute))
+            .toList(),
         repeatDays: _repeatDays.toList()..sort(),
+        intervalWeeks: _intervalWeeks,
+        anchorDate: _anchorDate,
       ),
       isEnabled: _isEnabled,
       createdAt: _createdAt,
@@ -211,7 +290,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
             maxLength: 20,
             decoration: const InputDecoration(
               labelText: 'セット名',
-              hintText: '例: 保育園',
+              hintText: '例: 仕事',
             ),
           ),
           const SizedBox(height: 24),
@@ -230,15 +309,38 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
             ],
           ),
           const Divider(height: 32),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('通知時刻'),
-            trailing: Text(
-              formatTime(_hour, _minute),
-              style: Theme.of(context).textTheme.titleMedium,
+          Text('通知時刻', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          for (var i = 0; i < _times.length; i++)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(formatTime(_times[i].hour, _times[i].minute)),
+              trailing: IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                tooltip: '削除',
+                onPressed: () => _removeTime(i),
+              ),
+              onTap: () => _editTime(i),
             ),
-            onTap: _pickTime,
+          TextButton.icon(
+            onPressed: _addTime,
+            icon: const Icon(Icons.add),
+            label: const Text('通知時刻を追加'),
           ),
+          const SizedBox(height: 16),
+          Text('頻度', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 1, label: Text('毎週')),
+              ButtonSegment(value: 2, label: Text('隔週')),
+            ],
+            selected: {_intervalWeeks},
+            onSelectionChanged: (selection) =>
+                _setIntervalWeeks(selection.first),
+          ),
+          const SizedBox(height: 16),
+          Text('曜日', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -277,7 +379,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
                     Expanded(
                       child: TextField(
                         controller: item.controller,
-                        decoration: const InputDecoration(hintText: '例: 連絡帳'),
+                        decoration: const InputDecoration(hintText: '例: ハンカチ'),
                       ),
                     ),
                     IconButton(

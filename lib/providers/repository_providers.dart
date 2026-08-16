@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/backup_service.dart';
 import '../data/checklist_repository.dart';
+import '../data/review_prompt_service.dart';
 import '../data/todo_set_repository.dart';
 import '../notifications/notification_service.dart';
 
@@ -18,3 +19,7 @@ final notificationServiceProvider = Provider<NotificationService>(
 );
 
 final backupServiceProvider = Provider<BackupService>((ref) => BackupService());
+
+final reviewPromptServiceProvider = Provider<ReviewPromptService>(
+  (ref) => ReviewPromptService(),
+);

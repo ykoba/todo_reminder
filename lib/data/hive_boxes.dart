@@ -16,6 +16,7 @@ Future<void> initHive() async {
   Hive.registerAdapter(ScheduleAdapter());
   Hive.registerAdapter(TodoSetAdapter());
   Hive.registerAdapter(DailyChecklistAdapter());
+  Hive.registerAdapter(ScheduleTimeAdapter());
 
   await Hive.openBox<TodoSet>(todoSetBoxName);
   await Hive.openBox<DailyChecklist>(dailyChecklistBoxName);

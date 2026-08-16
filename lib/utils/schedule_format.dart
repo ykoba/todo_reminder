@@ -7,13 +7,22 @@ String formatTime(int hour, int minute) =>
     '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 
 String scheduleSummary(Schedule schedule) {
-  final timeStr = formatTime(schedule.hour, schedule.minute);
-  if (schedule.repeatDays.length == 7) return '毎日 $timeStr';
-  if (schedule.repeatDays.isEmpty) return '未設定 $timeStr';
+  final timesStr = schedule.times
+      .map((time) => formatTime(time.hour, time.minute))
+      .join('・');
+
+  if (schedule.repeatDays.isEmpty) return '未設定 $timesStr';
 
   final days = List<int>.from(schedule.repeatDays)..sort();
-  final dayStr = days.map((d) => weekdayLabels[d]).join('');
-  return '$dayStr $timeStr';
+  final dayStr = days.length == 7
+      ? '毎日'
+      : days.map((d) => weekdayLabels[d]).join();
+  final parts = [
+    if (schedule.intervalWeeks > 1) '隔週',
+    dayStr,
+    timesStr,
+  ];
+  return parts.join(' ');
 }
 
 String formatJapaneseDate(DateTime date) => '${date.month}/${date.day}（${weekdayLabels[date.weekday]}）';

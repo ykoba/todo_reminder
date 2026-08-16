@@ -5,16 +5,32 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../models/schedule.dart';
 import '../models/todo_set.dart';
 
 const String _androidChannelId = 'todo_reminder_channel';
 const String _androidChannelName = '持ち物アラーム';
 const String _androidChannelDescription = '指定した時刻に持ち物リストを通知します';
 
-/// Wraps flutter_local_notifications to schedule one recurring notification
-/// per (TodoSet, weekday) pair. A TodoSet's notification content is fixed at
-/// schedule time, so any edit to the set's items/time/days must go through
-/// [scheduleForTodoSet] again to replace the pending notifications.
+/// Upper bounds used to size the notification-id space (see
+/// [_notificationId]) and the cancellation sweep in [cancelForTodoSet]. Not
+/// enforced by this class itself — [TodoSetEditScreen] is what actually
+/// keeps `schedule.times` within [maxTimesPerDay].
+const int maxTimesPerDay = 6;
+
+/// How many upcoming occurrences to schedule for a 隔週 (or wider-interval)
+/// schedule. Unlike a weekly (`intervalWeeks == 1`) schedule, which the OS
+/// can repeat indefinitely on its own via `matchDateTimeComponents`, there's
+/// no native "every N weeks" trigger, so these are individually-scheduled,
+/// non-repeating notifications covering roughly the next several months.
+/// [scheduleForTodoSet] is called again on every edit and on every app
+/// launch (see `app.dart`) to keep this window rolling forward.
+const int _biweeklyWindowCount = 8;
+
+/// Wraps flutter_local_notifications to schedule reminders for a TodoSet's
+/// (weekday × time) combinations. A TodoSet's notification content is fixed
+/// at schedule time, so any edit to the set's items/times/days must go
+/// through [scheduleForTodoSet] again to replace the pending notifications.
 class NotificationService {
   NotificationService._();
 
@@ -108,52 +124,99 @@ class NotificationService {
   }
 
   /// Replaces all pending notifications for [todoSet] with fresh ones derived
-  /// from its current items/schedule. Safe to call after any edit.
+  /// from its current items/schedule. Safe to call after any edit, and after
+  /// every app launch (see `app.dart`) to keep a 隔週 schedule's rolling
+  /// window of upcoming occurrences from running out.
   Future<void> scheduleForTodoSet(TodoSet todoSet) async {
     await cancelForTodoSet(todoSet.id);
 
+    final schedule = todoSet.schedule;
     if (!todoSet.isEnabled ||
-        todoSet.schedule.repeatDays.isEmpty ||
+        schedule.repeatDays.isEmpty ||
+        schedule.times.isEmpty ||
         todoSet.items.isEmpty) {
       return;
     }
 
     final body = '${todoSet.name}の持ち物を確認しましょう！';
+    final details = _detailsFor(body);
 
-    for (final weekday in todoSet.schedule.repeatDays) {
-      await _plugin.zonedSchedule(
-        _notificationId(todoSet.id, weekday),
-        todoSet.name,
-        body,
-        _nextInstanceOfWeekdayTime(
-          weekday,
-          todoSet.schedule.hour,
-          todoSet.schedule.minute,
-        ),
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _androidChannelId,
-            _androidChannelName,
-            channelDescription: _androidChannelDescription,
-            importance: Importance.high,
-            priority: Priority.high,
-            styleInformation: BigTextStyleInformation(body),
-          ),
-          iOS: const DarwinNotificationDetails(),
-        ),
-        payload: todoSet.id,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-      );
+    for (final weekday in schedule.repeatDays) {
+      for (var timeIndex = 0; timeIndex < schedule.times.length; timeIndex++) {
+        final time = schedule.times[timeIndex];
+
+        if (schedule.intervalWeeks <= 1) {
+          await _plugin.zonedSchedule(
+            _notificationId(todoSet.id, weekday, timeIndex, 0),
+            todoSet.name,
+            body,
+            _nextInstanceOfWeekdayTime(weekday, time.hour, time.minute),
+            details,
+            payload: todoSet.id,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+          );
+        } else {
+          final occurrences = _nextOccurrences(weekday, time, schedule);
+          for (
+            var occurrenceIndex = 0;
+            occurrenceIndex < occurrences.length;
+            occurrenceIndex++
+          ) {
+            await _plugin.zonedSchedule(
+              _notificationId(
+                todoSet.id,
+                weekday,
+                timeIndex,
+                occurrenceIndex,
+              ),
+              todoSet.name,
+              body,
+              occurrences[occurrenceIndex],
+              details,
+              payload: todoSet.id,
+              androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+            );
+          }
+        }
+      }
     }
   }
 
+  NotificationDetails _detailsFor(String body) => NotificationDetails(
+    android: AndroidNotificationDetails(
+      _androidChannelId,
+      _androidChannelName,
+      channelDescription: _androidChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+      styleInformation: BigTextStyleInformation(body),
+    ),
+    iOS: const DarwinNotificationDetails(),
+  );
+
   Future<void> cancelForTodoSet(String todoSetId) async {
+    final futures = <Future<void>>[];
     for (var weekday = 1; weekday <= 7; weekday++) {
-      await _plugin.cancel(_notificationId(todoSetId, weekday));
+      for (var timeIndex = 0; timeIndex < maxTimesPerDay; timeIndex++) {
+        for (
+          var occurrenceIndex = 0;
+          occurrenceIndex < _biweeklyWindowCount;
+          occurrenceIndex++
+        ) {
+          futures.add(
+            _plugin.cancel(
+              _notificationId(todoSetId, weekday, timeIndex, occurrenceIndex),
+            ),
+          );
+        }
+      }
     }
+    await Future.wait(futures);
   }
 
   tz.TZDateTime _nextInstanceOfWeekdayTime(int weekday, int hour, int minute) {
@@ -172,14 +235,47 @@ class NotificationService {
     return scheduled;
   }
 
-  /// Derives a stable notification id from (todoSetId, weekday). Uses a
-  /// simple bounded hash rather than Dart's String.hashCode, which is not
-  /// guaranteed stable across SDK versions.
-  int _notificationId(String todoSetId, int weekday) {
+  /// The next [_biweeklyWindowCount] occurrences of [weekday] at [time]
+  /// that fall on a week where [schedule] is active (see
+  /// [Schedule.isActiveOnWeekOf]), spaced [Schedule.intervalWeeks] apart.
+  List<tz.TZDateTime> _nextOccurrences(
+    int weekday,
+    ScheduleTime time,
+    Schedule schedule,
+  ) {
+    var next = _nextInstanceOfWeekdayTime(weekday, time.hour, time.minute);
+    final occurrences = <tz.TZDateTime>[];
+    while (occurrences.length < _biweeklyWindowCount) {
+      if (schedule.isActiveOnWeekOf(next)) {
+        occurrences.add(next);
+        next = next.add(Duration(days: 7 * schedule.intervalWeeks));
+      } else {
+        next = next.add(const Duration(days: 7));
+      }
+    }
+    return occurrences;
+  }
+
+  /// Derives a stable notification id from (todoSetId, weekday, timeIndex,
+  /// occurrenceIndex). Uses a simple bounded hash rather than Dart's
+  /// String.hashCode, which is not guaranteed stable across SDK versions.
+  /// occurrenceIndex is always 0 for a weekly (intervalWeeks == 1) schedule,
+  /// which reschedules itself natively via matchDateTimeComponents; it
+  /// ranges over 0..<_biweeklyWindowCount for a 隔週+ schedule, whose
+  /// occurrences are each scheduled as a separate, non-repeating alarm.
+  int _notificationId(
+    String todoSetId,
+    int weekday,
+    int timeIndex,
+    int occurrenceIndex,
+  ) {
     var hash = 0;
     for (final codeUnit in todoSetId.codeUnits) {
       hash = (hash * 31 + codeUnit) & 0x7FFFFFFF;
     }
-    return (hash % 1000000) * 10 + weekday;
+    return (hash % 1000000) * 1000 +
+        weekday * 100 +
+        timeIndex * 10 +
+        occurrenceIndex;
   }
 }

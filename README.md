@@ -13,7 +13,8 @@ Flutterアプリです。複数の**Todoセット**（＝チェックリスト�
 - 一覧はシンプルな名前・アイコン・スケジュールのみの表示。並び替え・編集は右下の
   小さいFAB（新規作成ボタンの上）で切り替える専用モードで行う（誤操作防止）
 - セットごとにモダンなアイコン20種類から選んで一覧に表示できる
-- 曜日ごとの繰り返し通知（例: 平日の7:00に通知、「〜を確認しましょう！」と前向きな文面）
+- 曜日ごとの繰り返し通知（例: 平日の7:00に通知、「〜を確認しましょう！」と前向きな文面）。
+  1日に複数の通知時刻や、隔週での繰り返しにも対応
 - 通知タップでそのセットのチェックリスト画面を直接開く
 - 日毎に独立したチェック状態の保存（テンプレート編集は過去分に影響しない）
 - 全持ち物チェックで自動完了、または「完了する」ボタンで明示的に完了扱いにできる。
@@ -28,6 +29,7 @@ Flutterアプリです。複数の**Todoセット**（＝チェックリスト�
 - ローカルバックアップの書き出し／復元（JSON形式。共有シートで保存先を選べる書き出しと、
   ファイル選択＋上書き確認ダイアログを経ての復元）
 - 設定画面から確認できる「このアプリについて」（アプリ名・バージョン・概要を表示）
+- 7日連続でアプリを開いたタイミングで、一度だけOS標準のストアレビューを依頼
 
 ## 技術スタック
 
@@ -36,6 +38,7 @@ Flutterアプリです。複数の**Todoセット**（＝チェックリスト�
 - ローカル永続化: [hive](https://pub.dev/packages/hive) / [hive_flutter](https://pub.dev/packages/hive_flutter)
 - ローカル通知: [flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications) +
   [timezone](https://pub.dev/packages/timezone) / [flutter_timezone](https://pub.dev/packages/flutter_timezone)
+- ストアレビュー依頼: [in_app_review](https://pub.dev/packages/in_app_review)
 
 対応プラットフォーム: Android, iOS, macOS, Windows, Linux（`android/` `ios/` `macos/` `windows/`
 `linux/` 各ディレクトリを参照）。
@@ -46,8 +49,9 @@ Flutterアプリです。複数の**Todoセット**（＝チェックリスト�
 lib/
   main.dart                     エントリーポイント（Hive初期化・通知初期化）
   app.dart                      MaterialApp / 通知タップ時のナビゲーション制御
-  models/                       Hiveモデル（TodoItem, Schedule, TodoSet, DailyChecklist）
-  data/                         Hiveボックス定義とリポジトリ（永続化層）
+  models/                       Hiveモデル（TodoItem, Schedule, ScheduleTime, TodoSet, DailyChecklist）
+  data/                         Hiveボックス定義とリポジトリ（永続化層）。バックアップ、
+                                 利用継続日数トラッキング、ストアレビュー依頼もここ
   providers/                    Riverpodプロバイダ（Hiveの変更をStreamで公開）
   notifications/                flutter_local_notificationsのラッパー
   screens/                      画面（一覧・編集・チェックリスト・完了履歴カレンダー）

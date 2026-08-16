@@ -28,6 +28,9 @@ class HiveTestHarness {
     if (!Hive.isAdapterRegistered(3)) {
       Hive.registerAdapter(DailyChecklistAdapter());
     }
+    if (!Hive.isAdapterRegistered(4)) {
+      Hive.registerAdapter(ScheduleTimeAdapter());
+    }
 
     await Hive.openBox<TodoSet>(todoSetBoxName);
     await Hive.openBox<DailyChecklist>(dailyChecklistBoxName);

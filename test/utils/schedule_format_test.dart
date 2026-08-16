@@ -32,27 +32,58 @@ void main() {
 
   group('scheduleSummary', () {
     test('shows 毎日 when all seven weekdays are selected', () {
-      final schedule = Schedule(hour: 7, minute: 0, repeatDays: [1, 2, 3, 4, 5, 6, 7]);
+      final schedule = Schedule(
+        times: [ScheduleTime(hour: 7, minute: 0)],
+        repeatDays: [1, 2, 3, 4, 5, 6, 7],
+      );
 
       expect(scheduleSummary(schedule), '毎日 07:00');
     });
 
     test('shows 未設定 when no weekdays are selected', () {
-      final schedule = Schedule(hour: 7, minute: 0, repeatDays: []);
+      final schedule = Schedule(
+        times: [ScheduleTime(hour: 7, minute: 0)],
+        repeatDays: [],
+      );
 
       expect(scheduleSummary(schedule), '未設定 07:00');
     });
 
     test('lists selected weekdays sorted, regardless of input order', () {
-      final schedule = Schedule(hour: 18, minute: 30, repeatDays: [5, 1, 3]);
+      final schedule = Schedule(
+        times: [ScheduleTime(hour: 18, minute: 30)],
+        repeatDays: [5, 1, 3],
+      );
 
       expect(scheduleSummary(schedule), '月水金 18:30');
     });
 
     test('a single selected weekday shows just that day', () {
-      final schedule = Schedule(hour: 9, minute: 0, repeatDays: [7]);
+      final schedule = Schedule(
+        times: [ScheduleTime(hour: 9, minute: 0)],
+        repeatDays: [7],
+      );
 
       expect(scheduleSummary(schedule), '日 09:00');
+    });
+
+    test('joins multiple times with ・', () {
+      final schedule = Schedule(
+        times: [ScheduleTime(hour: 7, minute: 0), ScheduleTime(hour: 18, minute: 30)],
+        repeatDays: [1],
+      );
+
+      expect(scheduleSummary(schedule), '月 07:00・18:30');
+    });
+
+    test('prefixes 隔週 when intervalWeeks is greater than 1', () {
+      final schedule = Schedule(
+        times: [ScheduleTime(hour: 7, minute: 0)],
+        repeatDays: [1, 2, 3, 4, 5, 6, 7],
+        intervalWeeks: 2,
+      );
+
+      expect(scheduleSummary(schedule), '隔週 毎日 07:00');
     });
   });
 

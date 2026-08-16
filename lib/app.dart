@@ -25,9 +25,10 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _initNotificationHandling(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initNotificationHandling();
+      ref.read(reviewPromptServiceProvider).recordAppOpenAndMaybePromptReview();
+    });
   }
 
   Future<void> _initNotificationHandling() async {
@@ -43,6 +44,15 @@ class _MyAppState extends ConsumerState<MyApp> {
     _notificationTapSubscription = notificationService.onTodoSetSelected.listen(
       _openChecklist,
     );
+
+    // A 隔週 (or wider-interval) schedule only has a rolling window of
+    // upcoming occurrences scheduled at any time (there's no native "every
+    // N weeks" OS trigger to hand indefinite recurrence off to — see
+    // NotificationService.scheduleForTodoSet), so refresh every set's
+    // notifications on each launch to keep that window from running out.
+    for (final todoSet in ref.read(todoSetRepositoryProvider).getAll()) {
+      await notificationService.scheduleForTodoSet(todoSet);
+    }
   }
 
   void _openChecklist(String todoSetId) {

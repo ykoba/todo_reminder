@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todo_reminder/data/backup_service.dart';
 import 'package:todo_reminder/data/checklist_repository.dart';
 import 'package:todo_reminder/data/todo_set_repository.dart';
+import 'package:todo_reminder/models/schedule.dart';
 
 import '../support/fixtures.dart';
 import '../support/hive_test_harness.dart';
@@ -80,12 +81,68 @@ void main() {
       final restored = todoSetRepository.getById('a')!;
       expect(restored.name, '保育園');
       expect(restored.items.map((item) => item.label), ['連絡帳', '水筒']);
-      expect(restored.schedule.hour, 7);
-      expect(restored.schedule.minute, 30);
+      expect(restored.schedule.times, hasLength(1));
+      expect(restored.schedule.times.single.hour, 7);
+      expect(restored.schedule.times.single.minute, 30);
       expect(restored.schedule.repeatDays, [1, 3, 5]);
       expect(restored.isEnabled, isFalse);
       expect(restored.sortOrder, 2);
       expect(restored.icon, 'school');
+    });
+
+    test('round-trips multiple times and a 隔週 interval', () async {
+      final anchor = DateTime(2026, 1, 5);
+      final original = buildTodoSet(
+        id: 'a',
+        schedule: buildSchedule(
+          times: [ScheduleTime(hour: 7, minute: 0), ScheduleTime(hour: 18, minute: 30)],
+          repeatDays: [1, 3, 5],
+          intervalWeeks: 2,
+          anchorDate: anchor,
+        ),
+      );
+      await todoSetRepository.save(original);
+
+      final json = backupService.exportToJson();
+      await backupService.importFromJson(json);
+
+      final restored = todoSetRepository.getById('a')!.schedule;
+      expect(
+        restored.times.map((t) => '${t.hour}:${t.minute}'),
+        ['7:0', '18:30'],
+      );
+      expect(restored.intervalWeeks, 2);
+      expect(restored.anchorDate, anchor);
+    });
+
+    test('reads a legacy backup that used a single hour/minute pair', () async {
+      await todoSetRepository.save(buildTodoSet(id: 'kept', name: '保持'));
+
+      await backupService.importFromJson('''
+        {
+          "version": 1,
+          "todoSets": [
+            {
+              "id": "legacy",
+              "name": "旧形式",
+              "items": [{"id": "i1", "label": "連絡帳", "sortOrder": 0}],
+              "schedule": {"hour": 7, "minute": 30, "repeatDays": [1, 2]},
+              "isEnabled": true,
+              "createdAt": "2026-01-01T00:00:00.000",
+              "updatedAt": "2026-01-01T00:00:00.000",
+              "sortOrder": 0,
+              "icon": "school"
+            }
+          ],
+          "dailyChecklists": []
+        }
+      ''');
+
+      final restored = todoSetRepository.getById('legacy')!.schedule;
+      expect(restored.times, hasLength(1));
+      expect(restored.times.single.hour, 7);
+      expect(restored.times.single.minute, 30);
+      expect(restored.intervalWeeks, 1);
     });
 
     test(

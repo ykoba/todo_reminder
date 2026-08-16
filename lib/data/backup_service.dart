@@ -13,7 +13,7 @@ const int _backupFormatVersion = 1;
 /// Serializes/restores every TodoSet and DailyChecklist as a single JSON
 /// document. This app has no server, so a user-initiated local backup (via
 /// the OS share sheet) is the only way to carry data across a device change
-/// or reinstall — see `screens/todo_set_list_screen.dart`'s settings menu
+/// or reinstall — see `screens/settings_screen.dart`'s backup bottom sheet
 /// for the export/import entry points.
 class BackupService {
   BackupService({
@@ -121,16 +121,40 @@ class BackupService {
   );
 
   Map<String, dynamic> _scheduleToJson(Schedule schedule) => {
-    'hour': schedule.hour,
-    'minute': schedule.minute,
+    'times': schedule.times.map(_scheduleTimeToJson).toList(),
     'repeatDays': schedule.repeatDays,
+    'intervalWeeks': schedule.intervalWeeks,
+    'anchorDate': schedule.anchorDate.toIso8601String(),
   };
 
-  Schedule _scheduleFromJson(Map<String, dynamic> json) => Schedule(
-    hour: json['hour'] as int,
-    minute: json['minute'] as int,
-    repeatDays: (json['repeatDays'] as List).cast<int>(),
-  );
+  /// Reads both the current `times`-list shape and the single `hour`/
+  /// `minute` shape used by backups exported before multi-time/隔週 support,
+  /// so an old backup file can still be restored.
+  Schedule _scheduleFromJson(Map<String, dynamic> json) {
+    final timesJson = json['times'];
+    final times = timesJson is List
+        ? timesJson
+              .map((entry) => _scheduleTimeFromJson(entry as Map<String, dynamic>))
+              .toList()
+        : [ScheduleTime(hour: json['hour'] as int, minute: json['minute'] as int)];
+
+    return Schedule(
+      times: times,
+      repeatDays: (json['repeatDays'] as List).cast<int>(),
+      intervalWeeks: json['intervalWeeks'] as int? ?? 1,
+      anchorDate: json['anchorDate'] != null
+          ? DateTime.parse(json['anchorDate'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> _scheduleTimeToJson(ScheduleTime time) => {
+    'hour': time.hour,
+    'minute': time.minute,
+  };
+
+  ScheduleTime _scheduleTimeFromJson(Map<String, dynamic> json) =>
+      ScheduleTime(hour: json['hour'] as int, minute: json['minute'] as int);
 
   Map<String, dynamic> _dailyChecklistToJson(DailyChecklist checklist) => {
     'id': checklist.id,

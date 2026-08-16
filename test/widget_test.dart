@@ -1,7 +1,19 @@
 // Top-level smoke test: boots the real app root widget (as `main.dart`
 // would), exercising app.dart's own startup path — permission request,
-// launch-notification check, and notification-tap subscription — on top of
-// what the per-screen tests under test/screens/ already cover in isolation.
+// launch-notification check, notification-tap subscription, and usage-streak
+// tracking — on top of what the per-screen tests under test/screens/ already
+// cover in isolation.
+//
+// _MyAppState's startup path now also calls
+// ReviewPromptService.recordAppOpenAndMaybePromptReview(), which makes a
+// real Hive write (recording today's usage) from inside a
+// postFrameCallback, on flutter_test's fake clock — the same hazard
+// documented in todo_set_edit_screen_save_test.dart and
+// useTallTestViewport's doc comment. That write's own completion can end up
+// waiting on a Timer that only ever fires on the real clock, so
+// `Hive.deleteFromDisk()` in a normal tearDown can hang forever; this file
+// is kept to a single test and uses tearDownWithoutClosingHive so nothing
+// here ever needs Hive to close normally.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,14 +32,15 @@ void main() {
     mockNotificationChannels();
   });
 
-  tearDown(() async {
+  tearDown(() {
     teardownMockNotificationChannels();
-    await harness.tearDown();
   });
 
   testWidgets('MyApp boots to the TodoSet list empty state without crashing', (
     tester,
   ) async {
+    addTearDown(harness.tearDownWithoutClosingHive);
+
     // Onboarding is a separate, first-run-only screen (see
     // screens/onboarding_screen_test.dart) — mark it seen here so this
     // smoke test exercises the screen a returning user actually lands on.
