@@ -34,7 +34,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                 const SizedBox(height: 16),
                 Text(
-                  '保育園の持ち物確認など、毎日のチェックリストをリマインドするアプリです。',
+                  '仕事の持ち物確認など、毎日のチェックリストをリマインドするアプリです。',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
