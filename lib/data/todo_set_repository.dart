@@ -38,4 +38,13 @@ class TodoSetRepository {
       }
     }
   }
+
+  /// Discards every currently stored TodoSet and replaces them with
+  /// [todoSets]. Used to restore a backup (see `BackupService`).
+  Future<void> replaceAll(List<TodoSet> todoSets) async {
+    await _box.clear();
+    for (final todoSet in todoSets) {
+      await _box.put(todoSet.id, todoSet);
+    }
+  }
 }

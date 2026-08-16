@@ -3,17 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/todo_set.dart';
 import '../providers/repository_providers.dart';
-import '../providers/theme_providers.dart';
 import '../providers/todo_set_providers.dart';
 import '../utils/schedule_format.dart';
 import '../utils/todo_set_icons.dart';
 import 'checklist_screen.dart';
-import 'privacy_policy_screen.dart';
+import 'settings_screen.dart';
 import 'todo_set_edit_screen.dart';
 
 enum _ListMode { normal, reordering, editing }
-
-enum _MenuAction { themeSystem, themeLight, themeDark, privacyPolicy }
 
 class TodoSetListScreen extends ConsumerStatefulWidget {
   const TodoSetListScreen({super.key});
@@ -28,7 +25,6 @@ class _TodoSetListScreenState extends ConsumerState<TodoSetListScreen> {
   @override
   Widget build(BuildContext context) {
     final todoSetsAsync = ref.watch(todoSetListProvider);
-    final themeMode = ref.watch(themeModeProvider);
     final isNormal = _mode == _ListMode.normal;
 
     return Scaffold(
@@ -36,63 +32,16 @@ class _TodoSetListScreenState extends ConsumerState<TodoSetListScreen> {
         title: Text(switch (_mode) {
           _ListMode.reordering => '並び替え',
           _ListMode.editing => '編集',
-          _ListMode.normal => '持ち物リマインダー',
+          _ListMode.normal => '持ち物アラーム',
         }),
         actions: isNormal
             ? [
-                // Theme selection and the privacy policy link are both
-                // app-level settings rather than list actions, so they
-                // share a single overflow menu (the common Material
-                // pattern for grouping secondary actions) instead of each
-                // getting their own AppBar icon.
-                PopupMenuButton<_MenuAction>(
-                  icon: Icon(switch (themeMode) {
-                    ThemeMode.light => Icons.light_mode_outlined,
-                    ThemeMode.dark => Icons.dark_mode_outlined,
-                    ThemeMode.system => Icons.brightness_auto_outlined,
-                  }),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
                   tooltip: '設定',
-                  onSelected: (action) {
-                    switch (action) {
-                      case _MenuAction.themeSystem:
-                        ref
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.system);
-                      case _MenuAction.themeLight:
-                        ref
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.light);
-                      case _MenuAction.themeDark:
-                        ref
-                            .read(themeModeProvider.notifier)
-                            .setThemeMode(ThemeMode.dark);
-                      case _MenuAction.privacyPolicy:
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacyPolicyScreen(),
-                          ),
-                        );
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: _MenuAction.themeSystem,
-                      child: Text('端末の設定に従う'),
-                    ),
-                    PopupMenuItem(
-                      value: _MenuAction.themeLight,
-                      child: Text('ライト'),
-                    ),
-                    PopupMenuItem(
-                      value: _MenuAction.themeDark,
-                      child: Text('ダーク'),
-                    ),
-                    PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: _MenuAction.privacyPolicy,
-                      child: Text('プライバシーポリシー'),
-                    ),
-                  ],
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
                 ),
               ]
             : [
@@ -108,7 +57,7 @@ class _TodoSetListScreenState extends ConsumerState<TodoSetListScreen> {
             Center(child: Text('読み込みに失敗しました: $error')),
         data: (todoSets) {
           if (todoSets.isEmpty) {
-            return const Center(child: Text('右下の + からTodoセットを作成してください'));
+            return const _EmptyState();
           }
           if (_mode == _ListMode.reordering) {
             return ReorderableListView.builder(
@@ -246,6 +195,77 @@ class _ReorderableTodoSetTile extends StatelessWidget {
       trailing: ReorderableDragStartListener(
         index: index,
         child: const Icon(Icons.drag_handle),
+      ),
+    );
+  }
+}
+
+/// Friendly illustration (rather than bare instructional text) shown when
+/// there are no TodoSets yet — a first-impression moment for new users.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 160,
+              height: 160,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colorScheme.primaryContainer,
+                    ),
+                  ),
+                  Icon(
+                    Icons.checklist_rtl_rounded,
+                    size: 84,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                  Positioned(
+                    right: 12,
+                    top: 20,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colorScheme.secondaryContainer,
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 20,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'まだTodoセットがありません',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '右下の + からTodoセットを作成してください',
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

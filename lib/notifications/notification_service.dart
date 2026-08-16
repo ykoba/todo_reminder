@@ -8,7 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../models/todo_set.dart';
 
 const String _androidChannelId = 'todo_reminder_channel';
-const String _androidChannelName = '持ち物リマインダー';
+const String _androidChannelName = '持ち物アラーム';
 const String _androidChannelDescription = '指定した時刻に持ち物リストを通知します';
 
 /// Wraps flutter_local_notifications to schedule one recurring notification
@@ -20,8 +20,10 @@ class NotificationService {
 
   static final NotificationService instance = NotificationService._();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
-  final StreamController<String> _selectedTodoSetIdController = StreamController<String>.broadcast();
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+  final StreamController<String> _selectedTodoSetIdController =
+      StreamController<String>.broadcast();
 
   /// Emits a TodoSet id whenever the user taps a notification while the app
   /// process is already running (foreground or background).
@@ -32,13 +34,18 @@ class NotificationService {
     final localTimezone = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(localTimezone.identifier));
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
       requestSoundPermission: false,
     );
-    const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+    const settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
 
     await _plugin.initialize(
       settings,
@@ -57,7 +64,9 @@ class NotificationService {
       importance: Importance.high,
     );
     await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(androidChannel);
   }
 
@@ -73,9 +82,14 @@ class NotificationService {
   /// the exact-alarm permission needed for reminders to fire at the precise
   /// scheduled time. Returns whether notification permission was granted.
   Future<bool> requestPermissions() async {
-    final androidPlugin =
-        _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    final iosPlugin = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    final iosPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
 
     if (androidPlugin != null) {
       final granted = await androidPlugin.requestNotificationsPermission();
@@ -83,7 +97,11 @@ class NotificationService {
       return granted ?? true;
     }
     if (iosPlugin != null) {
-      final granted = await iosPlugin.requestPermissions(alert: true, badge: true, sound: true);
+      final granted = await iosPlugin.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
       return granted ?? false;
     }
     return true;
@@ -94,18 +112,24 @@ class NotificationService {
   Future<void> scheduleForTodoSet(TodoSet todoSet) async {
     await cancelForTodoSet(todoSet.id);
 
-    if (!todoSet.isEnabled || todoSet.schedule.repeatDays.isEmpty || todoSet.items.isEmpty) {
+    if (!todoSet.isEnabled ||
+        todoSet.schedule.repeatDays.isEmpty ||
+        todoSet.items.isEmpty) {
       return;
     }
 
-    final body = todoSet.sortedItems.map((item) => item.label).join('・');
+    final body = '${todoSet.name}の持ち物を確認しましょう！';
 
     for (final weekday in todoSet.schedule.repeatDays) {
       await _plugin.zonedSchedule(
         _notificationId(todoSet.id, weekday),
         todoSet.name,
         body,
-        _nextInstanceOfWeekdayTime(weekday, todoSet.schedule.hour, todoSet.schedule.minute),
+        _nextInstanceOfWeekdayTime(
+          weekday,
+          todoSet.schedule.hour,
+          todoSet.schedule.minute,
+        ),
         NotificationDetails(
           android: AndroidNotificationDetails(
             _androidChannelId,
@@ -119,7 +143,8 @@ class NotificationService {
         ),
         payload: todoSet.id,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
     }
@@ -133,7 +158,14 @@ class NotificationService {
 
   tz.TZDateTime _nextInstanceOfWeekdayTime(int weekday, int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var scheduled = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
     while (scheduled.weekday != weekday || !scheduled.isAfter(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }

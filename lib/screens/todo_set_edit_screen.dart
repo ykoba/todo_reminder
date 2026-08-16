@@ -133,6 +133,12 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
       labeledItems.add(TodoItem(id: _items[i].id, label: label, sortOrder: i));
     }
 
+    if (labeledItems.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('持ち物を1つ以上入力してください')));
+      return;
+    }
+
     final todoSet = TodoSet(
       id: widget.todoSetId ?? _uuid.v4(),
       name: name,
@@ -252,7 +258,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
             onChanged: (value) => setState(() => _isEnabled = value),
           ),
           const Divider(height: 32),
-          Text('Todo項目', style: Theme.of(context).textTheme.titleMedium),
+          Text('持ち物', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           ReorderableListView.builder(
             shrinkWrap: true,
@@ -286,7 +292,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
           TextButton.icon(
             onPressed: _addItem,
             icon: const Icon(Icons.add),
-            label: const Text('項目を追加'),
+            label: const Text('持ち物を追加'),
           ),
           const SizedBox(height: 24),
           FilledButton(onPressed: _save, child: const Text('保存')),

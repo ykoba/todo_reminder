@@ -26,7 +26,8 @@ void main() {
 
   tearDown(teardownMockNotificationChannels);
 
-  List<MethodCall> callsOf(String method) => log.where((call) => call.method == method).toList();
+  List<MethodCall> callsOf(String method) =>
+      log.where((call) => call.method == method).toList();
 
   group('scheduleForTodoSet', () {
     test('schedules exactly one notification per selected weekday', () async {
@@ -37,18 +38,24 @@ void main() {
       expect(callsOf('zonedSchedule'), hasLength(3));
     });
 
-    test('cancels all seven weekday slots before scheduling new ones', () async {
-      final set = buildTodoSet(schedule: buildSchedule(repeatDays: [1]));
+    test(
+      'cancels all seven weekday slots before scheduling new ones',
+      () async {
+        final set = buildTodoSet(schedule: buildSchedule(repeatDays: [1]));
 
-      await NotificationService.instance.scheduleForTodoSet(set);
+        await NotificationService.instance.scheduleForTodoSet(set);
 
-      expect(callsOf('cancel'), hasLength(7));
-    });
+        expect(callsOf('cancel'), hasLength(7));
+      },
+    );
 
-    test('uses the set name as title, items joined by ・ as body, and the set id as payload', () async {
+    test('uses the set name as title, an encouraging set-name reference as body, and the set id as payload', () async {
       final set = buildTodoSet(
         name: '保育園',
-        items: [buildTodoItem(label: '連絡帳', sortOrder: 0), buildTodoItem(label: '水筒', sortOrder: 1)],
+        items: [
+          buildTodoItem(label: '連絡帳', sortOrder: 0),
+          buildTodoItem(label: '水筒', sortOrder: 1),
+        ],
         schedule: buildSchedule(repeatDays: [1]),
       );
 
@@ -56,24 +63,15 @@ void main() {
 
       final args = callsOf('zonedSchedule').single.arguments as Map;
       expect(args['title'], '保育園');
-      expect(args['body'], '連絡帳・水筒');
+      expect(args['body'], '保育園の持ち物を確認しましょう！');
       expect(args['payload'], set.id);
     });
 
-    test('orders the body by sortOrder, not by list insertion order', () async {
-      final set = buildTodoSet(
-        items: [buildTodoItem(label: '2番目', sortOrder: 1), buildTodoItem(label: '1番目', sortOrder: 0)],
-        schedule: buildSchedule(repeatDays: [1]),
-      );
-
-      await NotificationService.instance.scheduleForTodoSet(set);
-
-      final args = callsOf('zonedSchedule').single.arguments as Map;
-      expect(args['body'], '1番目・2番目');
-    });
-
     test('does not schedule when the set is disabled', () async {
-      final set = buildTodoSet(isEnabled: false, schedule: buildSchedule(repeatDays: [1, 2]));
+      final set = buildTodoSet(
+        isEnabled: false,
+        schedule: buildSchedule(repeatDays: [1, 2]),
+      );
 
       await NotificationService.instance.scheduleForTodoSet(set);
 
@@ -89,28 +87,41 @@ void main() {
     });
 
     test('does not schedule when the set has no items', () async {
-      final set = buildTodoSet(items: [], schedule: buildSchedule(repeatDays: [1, 2]));
+      final set = buildTodoSet(
+        items: [],
+        schedule: buildSchedule(repeatDays: [1, 2]),
+      );
 
       await NotificationService.instance.scheduleForTodoSet(set);
 
       expect(callsOf('zonedSchedule'), isEmpty);
     });
 
-    test('still cancels pending notifications even when nothing new is scheduled', () async {
-      final set = buildTodoSet(isEnabled: false, schedule: buildSchedule(repeatDays: [1, 2]));
+    test(
+      'still cancels pending notifications even when nothing new is scheduled',
+      () async {
+        final set = buildTodoSet(
+          isEnabled: false,
+          schedule: buildSchedule(repeatDays: [1, 2]),
+        );
 
-      await NotificationService.instance.scheduleForTodoSet(set);
+        await NotificationService.instance.scheduleForTodoSet(set);
 
-      expect(callsOf('cancel'), hasLength(7));
-      expect(callsOf('zonedSchedule'), isEmpty);
-    });
+        expect(callsOf('cancel'), hasLength(7));
+        expect(callsOf('zonedSchedule'), isEmpty);
+      },
+    );
 
     test('encodes the weekday into each notification id so ids differ across weekdays', () async {
-      final set = buildTodoSet(schedule: buildSchedule(repeatDays: [1, 2, 3, 4, 5, 6, 7]));
+      final set = buildTodoSet(
+        schedule: buildSchedule(repeatDays: [1, 2, 3, 4, 5, 6, 7]),
+      );
 
       await NotificationService.instance.scheduleForTodoSet(set);
 
-      final ids = callsOf('zonedSchedule').map((call) => (call.arguments as Map)['id'] as int).toList();
+      final ids = callsOf('zonedSchedule')
+          .map((call) => (call.arguments as Map)['id'] as int)
+          .toList();
       expect(ids.map((id) => id % 10).toSet(), {1, 2, 3, 4, 5, 6, 7});
       expect(ids.toSet(), hasLength(7));
     });
@@ -147,23 +158,28 @@ void main() {
   });
 
   group('getLaunchTodoSetId', () {
-    test('returns null when the app was not launched via a notification', () async {
-      final id = await NotificationService.instance.getLaunchTodoSetId();
+    test(
+      'returns null when the app was not launched via a notification',
+      () async {
+        final id = await NotificationService.instance.getLaunchTodoSetId();
 
-      expect(id, isNull);
-    });
+        expect(id, isNull);
+      },
+    );
 
     test('returns the payload when the app was cold-started from a notification tap', () async {
-      mockNotificationChannels(launchDetails: {
-        'notificationLaunchedApp': true,
-        'notificationResponse': {
-          'notificationId': 1,
-          'actionId': null,
-          'input': null,
-          'notificationResponseType': 0,
-          'payload': 'todo-set-7',
+      mockNotificationChannels(
+        launchDetails: {
+          'notificationLaunchedApp': true,
+          'notificationResponse': {
+            'notificationId': 1,
+            'actionId': null,
+            'input': null,
+            'notificationResponseType': 0,
+            'payload': 'todo-set-7',
+          },
         },
-      });
+      );
 
       final id = await NotificationService.instance.getLaunchTodoSetId();
 
@@ -173,7 +189,9 @@ void main() {
 
   test('onTodoSetSelected emits the payload when a notification is tapped while running', () async {
     final received = <String>[];
-    final sub = NotificationService.instance.onTodoSetSelected.listen(received.add);
+    final sub = NotificationService.instance.onTodoSetSelected.listen(
+      received.add,
+    );
     addTearDown(sub.cancel);
 
     await simulateNotificationTap('todo-set-42');

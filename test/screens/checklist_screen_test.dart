@@ -136,7 +136,7 @@ void main() {
 
       await pumpChecklist(tester, set.id);
 
-      expect(find.text('項目がありません'), findsOneWidget);
+      expect(find.text('持ち物がありません'), findsOneWidget);
       expect(find.text('0/0 チェック済み'), findsOneWidget);
     },
   );

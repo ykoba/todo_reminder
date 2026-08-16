@@ -1,6 +1,6 @@
 {
-    "name": "持ち物リマインダー",
-    "short_name": "持ち物リマインダー",
+    "name": "持ち物アラーム",
+    "short_name": "持ち物アラーム",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#673AB7",

@@ -48,6 +48,10 @@ class ChecklistRepository {
     };
   }
 
+  /// Every recorded checklist, across every TodoSet. Used to build a full
+  /// local backup (see `BackupService`).
+  List<DailyChecklist> getAll() => _box.values.toList();
+
   Future<void> toggleItem(DailyChecklist checklist, String itemId) async {
     final checked = checklist.checkedItemIds.contains(itemId);
     checklist.checkedItemIds = checked
@@ -77,5 +81,14 @@ class ChecklistRepository {
   Future<void> setMemo(DailyChecklist checklist, String memo) async {
     checklist.memo = memo;
     await checklist.save();
+  }
+
+  /// Discards every currently stored checklist and replaces them with
+  /// [checklists]. Used to restore a backup (see `BackupService`).
+  Future<void> replaceAll(List<DailyChecklist> checklists) async {
+    await _box.clear();
+    for (final checklist in checklists) {
+      await _box.put(_key(checklist.todoSetId, checklist.dateKey), checklist);
+    }
   }
 }

@@ -264,4 +264,48 @@ void main() {
       expect(checklist.memo, '');
     });
   });
+
+  group('getAll', () {
+    test('returns every checklist across every todoSet', () {
+      final setA = buildTodoSet(id: 'set-a');
+      final setB = buildTodoSet(id: 'set-b');
+      repository.getOrCreate(setA, '2026-01-01');
+      repository.getOrCreate(setB, '2026-01-01');
+
+      expect(repository.getAll().map((c) => c.todoSetId).toSet(), {
+        'set-a',
+        'set-b',
+      });
+    });
+
+    test('is empty when nothing has been recorded', () {
+      expect(repository.getAll(), isEmpty);
+    });
+  });
+
+  group('replaceAll', () {
+    test(
+      'discards existing checklists not present in the replacement list',
+      () async {
+        final todoSet = buildTodoSet(id: 'set-1');
+        repository.getOrCreate(todoSet, '2026-01-01');
+
+        await repository.replaceAll([
+          buildDailyChecklist(todoSetId: 'set-1', dateKey: '2026-02-01'),
+        ]);
+
+        expect(repository.get('set-1', '2026-01-01'), isNull);
+        expect(repository.get('set-1', '2026-02-01'), isNotNull);
+      },
+    );
+
+    test('an empty list clears all checklists', () async {
+      final todoSet = buildTodoSet(id: 'set-1');
+      repository.getOrCreate(todoSet, '2026-01-01');
+
+      await repository.replaceAll([]);
+
+      expect(repository.getAll(), isEmpty);
+    });
+  });
 }

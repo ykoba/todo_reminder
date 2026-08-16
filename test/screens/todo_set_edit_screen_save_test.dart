@@ -57,8 +57,8 @@ void main() {
       await settle(tester);
 
       await tester.enterText(find.byType(TextField).first, '保育園');
-      await tester.tap(find.text('項目を追加'));
-      await tester.tap(find.text('項目を追加'));
+      await tester.tap(find.text('持ち物を追加'));
+      await tester.tap(find.text('持ち物を追加'));
       await settle(tester);
       await tester.enterText(find.byType(TextField).at(1), '連絡帳');
       // Second item row is left blank.

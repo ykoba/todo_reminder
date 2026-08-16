@@ -1,11 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/backup_service.dart';
 import '../data/checklist_repository.dart';
 import '../data/todo_set_repository.dart';
 import '../notifications/notification_service.dart';
 
-final todoSetRepositoryProvider = Provider<TodoSetRepository>((ref) => TodoSetRepository());
+final todoSetRepositoryProvider = Provider<TodoSetRepository>(
+  (ref) => TodoSetRepository(),
+);
 
-final checklistRepositoryProvider = Provider<ChecklistRepository>((ref) => ChecklistRepository());
+final checklistRepositoryProvider = Provider<ChecklistRepository>(
+  (ref) => ChecklistRepository(),
+);
 
-final notificationServiceProvider = Provider<NotificationService>((ref) => NotificationService.instance);
+final notificationServiceProvider = Provider<NotificationService>(
+  (ref) => NotificationService.instance,
+);
+
+final backupServiceProvider = Provider<BackupService>((ref) => BackupService());

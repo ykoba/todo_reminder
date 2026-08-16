@@ -82,10 +82,41 @@ void main() {
       },
     );
 
+    testWidgets(
+      'shows a validation message and saves nothing when there are no items',
+      (tester) async {
+        await pumpEdit(tester);
+
+        await tester.enterText(find.byType(TextField).first, '保育園');
+        await tester.tap(find.text('保存'));
+        await tester.pump();
+
+        expect(find.text('持ち物を1つ以上入力してください'), findsOneWidget);
+        expect(TodoSetRepository().getAll(), isEmpty);
+      },
+    );
+
+    testWidgets(
+      'shows a validation message when the only item row is left blank',
+      (tester) async {
+        await pumpEdit(tester);
+
+        await tester.enterText(find.byType(TextField).first, '保育園');
+        await tester.tap(find.text('持ち物を追加'));
+        await settle(tester);
+        // The added item row is left blank.
+        await tester.tap(find.text('保存'));
+        await tester.pump();
+
+        expect(find.text('持ち物を1つ以上入力してください'), findsOneWidget);
+        expect(TodoSetRepository().getAll(), isEmpty);
+      },
+    );
+
     testWidgets('tapping the close icon removes that item row', (tester) async {
       await pumpEdit(tester);
-      await tester.tap(find.text('項目を追加'));
-      await tester.tap(find.text('項目を追加'));
+      await tester.tap(find.text('持ち物を追加'));
+      await tester.tap(find.text('持ち物を追加'));
       await settle(tester);
       expect(find.byType(TextField), findsNWidgets(3)); // name + 2 items
 

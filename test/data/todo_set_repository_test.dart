@@ -134,6 +134,36 @@ void main() {
     });
   });
 
+  group('replaceAll', () {
+    test(
+      'discards existing sets not present in the replacement list',
+      () async {
+        await repository.save(buildTodoSet(id: 'old'));
+
+        await repository.replaceAll([buildTodoSet(id: 'new')]);
+
+        expect(repository.getAll().map((set) => set.id), ['new']);
+      },
+    );
+
+    test('persists every set in the replacement list', () async {
+      await repository.replaceAll([
+        buildTodoSet(id: 'a', name: 'A'),
+        buildTodoSet(id: 'b', name: 'B'),
+      ]);
+
+      expect(repository.getAll().map((set) => set.id), ['a', 'b']);
+    });
+
+    test('an empty list clears all sets', () async {
+      await repository.save(buildTodoSet(id: 'a'));
+
+      await repository.replaceAll([]);
+
+      expect(repository.getAll(), isEmpty);
+    });
+  });
+
   test('listenable notifies listeners when the box changes', () async {
     var notified = false;
     repository.listenable().addListener(() => notified = true);
