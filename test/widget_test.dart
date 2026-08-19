@@ -56,6 +56,6 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: MyApp()));
     await settle(tester);
 
-    expect(find.text('右下の + からTodoセットを作成してください'), findsOneWidget);
+    expect(find.text('右下の + から持ち物セットを作成してください'), findsOneWidget);
   });
 }

@@ -18,8 +18,12 @@ class _EditableItem {
 
   final String id;
   final TextEditingController controller;
+  final FocusNode focusNode = FocusNode();
 
-  void dispose() => controller.dispose();
+  void dispose() {
+    controller.dispose();
+    focusNode.dispose();
+  }
 }
 
 class TodoSetEditScreen extends ConsumerStatefulWidget {
@@ -42,6 +46,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   late bool _isEnabled;
   late final DateTime _createdAt;
   late final int _sortOrder;
+  bool _isSaving = false;
   late String _icon;
 
   bool get _isEditing => widget.todoSetId != null;
@@ -88,7 +93,14 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   }
 
   void _addItem() {
-    setState(() => _items.add(_EditableItem(id: _uuid.v4(), label: '')));
+    final item = _EditableItem(id: _uuid.v4(), label: '');
+    setState(() => _items.add(item));
+    // Focus lands in the new row's field once it's actually in the tree —
+    // requesting it in the same frame as setState would target a widget
+    // that doesn't exist yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) item.focusNode.requestFocus();
+    });
   }
 
   void _removeItem(int index) {
@@ -120,9 +132,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
 
   Future<void> _addTime() async {
     if (_times.length >= maxTimesPerDay) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('通知時刻は最大$maxTimesPerDay件までです')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('通知時刻は最大$maxTimesPerDay件までです')));
       return;
     }
     final picked = await showTimePicker(
@@ -131,9 +142,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     );
     if (picked == null || !mounted) return;
     if (_isDuplicateTime(picked)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('その時刻はすでに追加されています')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('その時刻はすでに追加されています')));
       return;
     }
     setState(() {
@@ -149,9 +159,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     );
     if (picked == null || !mounted) return;
     if (_isDuplicateTime(picked, ignoringIndex: index)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('その時刻はすでに追加されています')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('その時刻はすでに追加されています')));
       return;
     }
     setState(() {
@@ -188,6 +197,13 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
   }
 
   Future<void> _save() async {
+    // Guards against a double-tap on "保存": without this, a second tap
+    // landing while the first save's awaits are still in flight would run
+    // _save() again concurrently, and the second call's Navigator.pop()
+    // would find the route already being removed by the first — throwing
+    // "Bad state: No element" instead of just being a no-op.
+    if (_isSaving) return;
+
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -196,9 +212,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     }
 
     if (_times.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('通知時刻を1つ以上設定してください')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('通知時刻を1つ以上設定してください')));
       return;
     }
 
@@ -233,6 +248,8 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
       sortOrder: _sortOrder,
       icon: _icon,
     );
+
+    setState(() => _isSaving = true);
 
     await ref.read(todoSetRepositoryProvider).save(todoSet);
     await ref.read(notificationServiceProvider).scheduleForTodoSet(todoSet);
@@ -282,123 +299,178 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
             ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _nameController,
-            maxLength: 20,
-            decoration: const InputDecoration(
-              labelText: 'セット名',
-              hintText: '例: 仕事',
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text('アイコン', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final entry in todoSetIcons.entries)
-                _IconOption(
-                  icon: entry.value,
-                  selected: entry.key == _icon,
-                  onTap: () => _selectIcon(entry.key),
-                ),
-            ],
-          ),
-          const Divider(height: 32),
-          Text('通知時刻', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          for (var i = 0; i < _times.length; i++)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(formatTime(_times[i].hour, _times[i].minute)),
-              trailing: IconButton(
-                icon: const Icon(Icons.remove_circle_outline),
-                tooltip: '削除',
-                onPressed: () => _removeTime(i),
-              ),
-              onTap: () => _editTime(i),
-            ),
-          TextButton.icon(
-            onPressed: _addTime,
-            icon: const Icon(Icons.add),
-            label: const Text('通知時刻を追加'),
-          ),
-          const SizedBox(height: 16),
-          Text('頻度', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 1, label: Text('毎週')),
-              ButtonSegment(value: 2, label: Text('隔週')),
-            ],
-            selected: {_intervalWeeks},
-            onSelectionChanged: (selection) =>
-                _setIntervalWeeks(selection.first),
-          ),
-          const SizedBox(height: 16),
-          Text('曜日', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final entry in weekdayLabels.entries)
-                FilterChip(
-                  label: Text(entry.value),
-                  selected: _repeatDays.contains(entry.key),
-                  onSelected: (_) => _toggleWeekday(entry.key),
-                ),
-            ],
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('通知を有効にする'),
-            value: _isEnabled,
-            onChanged: (value) => setState(() => _isEnabled = value),
-          ),
-          const Divider(height: 32),
-          Text('持ち物', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _items.length,
-            onReorderItem: _reorderItems,
-            itemBuilder: (context, index) {
-              final item = _items[index];
-              return Padding(
-                key: ValueKey(item.id),
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.drag_handle),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: item.controller,
-                        decoration: const InputDecoration(hintText: '例: ハンカチ'),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  TextField(
+                    controller: _nameController,
+                    maxLength: 20,
+                    decoration: const InputDecoration(
+                      labelText: 'セット名',
+                      hintText: '例: 仕事',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text('アイコン', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final entry in todoSetIcons.entries)
+                        _IconOption(
+                          icon: entry.value,
+                          selected: entry.key == _icon,
+                          onTap: () => _selectIcon(entry.key),
+                        ),
+                    ],
+                  ),
+                  const Divider(height: 32),
+                  Text('通知時刻', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  for (var i = 0; i < _times.length; i++)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(formatTime(_times[i].hour, _times[i].minute)),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        tooltip: '削除',
+                        onPressed: () => _removeTime(i),
                       ),
+                      onTap: () => _editTime(i),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => _removeItem(index),
-                    ),
-                  ],
-                ),
-              );
-            },
+                  TextButton.icon(
+                    onPressed: _addTime,
+                    icon: const Icon(Icons.add),
+                    label: const Text('通知時刻を追加'),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('頻度', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment(value: 1, label: Text('毎週')),
+                      ButtonSegment(value: 2, label: Text('隔週')),
+                    ],
+                    selected: {_intervalWeeks},
+                    onSelectionChanged: (selection) =>
+                        _setIntervalWeeks(selection.first),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('曜日', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final entry in weekdayLabels.entries)
+                        FilterChip(
+                          label: Text(entry.value),
+                          selected: _repeatDays.contains(entry.key),
+                          onSelected: (_) => _toggleWeekday(entry.key),
+                        ),
+                    ],
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('通知を有効にする'),
+                    value: _isEnabled,
+                    onChanged: (value) => setState(() => _isEnabled = value),
+                  ),
+                  const Divider(height: 32),
+                  Text('持ち物', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _items.length,
+                    onReorderItem: _reorderItems,
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      return Padding(
+                        key: ValueKey(item.id),
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.drag_handle),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: item.controller,
+                                focusNode: item.focusNode,
+                                decoration: const InputDecoration(
+                                  hintText: '例: ハンカチ',
+                                ),
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) => _addItem(),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => _removeItem(index),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  TextButton.icon(
+                    onPressed: _addItem,
+                    icon: const Icon(Icons.add),
+                    label: const Text('持ち物を追加'),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _isSaving ? null : _save,
+                    child: const Text('保存'),
+                  ),
+                ],
+              ),
+            ),
+            if (MediaQuery.of(context).viewInsets.bottom > 0)
+              _KeyboardDismissBar(
+                onDismiss: () => FocusScope.of(context).unfocus(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A bar that sits directly above the on-screen keyboard (mirroring the
+/// "Done" accessory bar iOS text fields commonly show), so the keyboard can
+/// be closed without tapping outside a field or submitting via the return
+/// key. Only rendered while the keyboard is actually open.
+class _KeyboardDismissBar extends StatelessWidget {
+  const _KeyboardDismissBar({required this.onDismiss});
+
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: onDismiss,
+            icon: const Icon(Icons.keyboard_hide_outlined),
+            label: const Text('閉じる'),
           ),
-          TextButton.icon(
-            onPressed: _addItem,
-            icon: const Icon(Icons.add),
-            label: const Text('持ち物を追加'),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(onPressed: _save, child: const Text('保存')),
-        ],
+        ),
       ),
     );
   }

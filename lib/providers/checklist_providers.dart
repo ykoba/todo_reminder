@@ -34,18 +34,3 @@ Stream<DailyChecklist?> _watchChecklist(ChecklistRepository repo, String todoSet
       .watch()
       .map((_) => repo.get(todoSetId, dateKey));
 }
-
-/// Live view of every recorded checklist for one TodoSet, keyed by
-/// `dateKey`. Backs the completion-history calendar.
-final checklistHistoryProvider = StreamProvider.family<Map<String, DailyChecklist>, String>((ref, todoSetId) {
-  final repo = ref.watch(checklistRepositoryProvider);
-  return _watchHistory(repo, todoSetId);
-});
-
-Stream<Map<String, DailyChecklist>> _watchHistory(ChecklistRepository repo, String todoSetId) async* {
-  yield repo.getAllForTodoSet(todoSetId);
-  yield* Hive
-      .box<DailyChecklist>(dailyChecklistBoxName)
-      .watch()
-      .map((_) => repo.getAllForTodoSet(todoSetId));
-}

@@ -16,11 +16,27 @@ import 'privacy_policy_screen.dart';
 /// App-level settings, reached from TodoSetListScreen's AppBar. Rows are
 /// ordered roughly by how often a user needs them: what the app is, its
 /// legal info, then the two settings that actually change its behavior.
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+/// The double-tap guards below are State instance fields rather than a
+/// module-level flag: a module-level bool stays true for the lifetime of the
+/// isolate whenever the guarded Future doesn't resolve promptly (e.g.
+/// Navigator.push's Future only resolves once the pushed route is popped),
+/// which could strand it stuck true well beyond this one screen visit.
+/// Scoping it to the State means a fresh SettingsScreen visit always starts
+/// unguarded.
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _isNavigating = false;
+  bool _isThemeSheetOpen = false;
+  bool _isBackupSheetOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
@@ -30,28 +46,24 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('このアプリについて'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AboutScreen()),
-            ),
+            onTap: () => _navigateOnce((_) => const AboutScreen()),
           ),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('プライバシーポリシー'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
-            ),
+            onTap: () => _navigateOnce((_) => const PrivacyPolicyScreen()),
           ),
           ListTile(
             leading: const Icon(Icons.brightness_6_outlined),
             title: const Text('表示テーマ'),
             subtitle: Text(_themeModeLabel(themeMode)),
-            onTap: () => _pickThemeMode(context, ref),
+            onTap: _pickThemeMode,
           ),
           ListTile(
             leading: const Icon(Icons.backup_outlined),
             title: const Text('バックアップ'),
             subtitle: const Text('作成・復元'),
-            onTap: () => _showBackupOptions(context, ref),
+            onTap: _showBackupOptions,
           ),
         ],
       ),
@@ -64,64 +76,84 @@ class SettingsScreen extends ConsumerWidget {
     ThemeMode.dark => 'ダーク',
   };
 
-  Future<void> _pickThemeMode(BuildContext context, WidgetRef ref) async {
-    final current = ref.read(themeModeProvider);
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final mode in ThemeMode.values)
-              ListTile(
-                title: Text(_themeModeLabel(mode)),
-                trailing: mode == current
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () {
-                  ref.read(themeModeProvider.notifier).setThemeMode(mode);
-                  Navigator.of(sheetContext).pop();
-                },
-              ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _navigateOnce(WidgetBuilder builder) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: builder));
+    } finally {
+      if (mounted) _isNavigating = false;
+    }
   }
 
-  Future<void> _showBackupOptions(BuildContext context, WidgetRef ref) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.ios_share_outlined),
-              title: const Text('バックアップを作成'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _exportBackup(context, ref);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: const Text('バックアップから復元'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _importBackup(context, ref);
-              },
-            ),
-          ],
+  Future<void> _pickThemeMode() async {
+    if (_isThemeSheetOpen) return;
+    _isThemeSheetOpen = true;
+    final current = ref.read(themeModeProvider);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final mode in ThemeMode.values)
+                ListTile(
+                  title: Text(_themeModeLabel(mode)),
+                  trailing: mode == current ? const Icon(Icons.check) : null,
+                  onTap: () {
+                    ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                    Navigator.of(sheetContext).pop();
+                  },
+                ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) _isThemeSheetOpen = false;
+    }
+  }
+
+  Future<void> _showBackupOptions() async {
+    if (_isBackupSheetOpen) return;
+    _isBackupSheetOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.ios_share_outlined),
+                title: const Text('バックアップを作成'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _exportBackup();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined),
+                title: const Text('バックアップから復元'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _importBackup();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) _isBackupSheetOpen = false;
+    }
   }
 
   /// Writes the current backup JSON to a temp file and hands it to the OS
   /// share sheet, so the user picks where it ends up (Files, Drive,
   /// AirDrop, ...) — this app has no server of its own to upload to.
-  Future<void> _exportBackup(BuildContext context, WidgetRef ref) async {
+  Future<void> _exportBackup() async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final json = ref.read(backupServiceProvider).exportToJson();
@@ -133,7 +165,7 @@ class SettingsScreen extends ConsumerWidget {
       final file = File('${tempDir.path}/持ち物アラーム_backup_$timestamp.json');
       await file.writeAsString(json);
 
-      if (!context.mounted) return;
+      if (!mounted) return;
       // sharePositionOrigin anchors the share sheet's popover on iPad;
       // required there, harmless elsewhere.
       final box = context.findRenderObject() as RenderBox?;
@@ -156,7 +188,7 @@ class SettingsScreen extends ConsumerWidget {
   /// Lets the user pick a previously exported JSON file, confirms that
   /// restoring it will overwrite everything currently stored, and — if
   /// confirmed — replaces all local data with its contents.
-  Future<void> _importBackup(BuildContext context, WidgetRef ref) async {
+  Future<void> _importBackup() async {
     final messenger = ScaffoldMessenger.of(context);
     final picked = await FilePicker.pickFile(
       type: FileType.custom,
@@ -172,7 +204,7 @@ class SettingsScreen extends ConsumerWidget {
       return;
     }
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

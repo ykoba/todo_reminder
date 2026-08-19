@@ -20,7 +20,6 @@ Flutterアプリです。複数の**Todoセット**（＝チェックリスト�
 - 全持ち物チェックで自動完了、または「完了する」ボタンで明示的に完了扱いにできる。
   「すべてチェック」ボタンや、その日のメモ欄も用意
 - 完了の瞬間は紙吹雪＋バウンドするチェックマークの演出とハプティックフィードバックで祝う
-- 完了履歴を月カレンダーで可視化（日付タップで完了/未完了・チェック件数を表示）
 - ライト/ダーク/端末設定に従う、から選べる表示テーマ（ナイトモード）
 - アプリ内で確認できるプライバシーポリシー画面（本アプリはサーバー通信を行わず、
   データはすべて端末内に保存される旨などを記載）
@@ -39,6 +38,7 @@ Flutterアプリです。複数の**Todoセット**（＝チェックリスト�
 - ローカル通知: [flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications) +
   [timezone](https://pub.dev/packages/timezone) / [flutter_timezone](https://pub.dev/packages/flutter_timezone)
 - ストアレビュー依頼: [in_app_review](https://pub.dev/packages/in_app_review)
+- スワイプ削除UI: [flutter_slidable](https://pub.dev/packages/flutter_slidable)
 
 対応プラットフォーム: Android, iOS, macOS, Windows, Linux（`android/` `ios/` `macos/` `windows/`
 `linux/` 各ディレクトリを参照）。
@@ -54,7 +54,7 @@ lib/
                                  利用継続日数トラッキング、ストアレビュー依頼もここ
   providers/                    Riverpodプロバイダ（Hiveの変更をStreamで公開）
   notifications/                flutter_local_notificationsのラッパー
-  screens/                      画面（一覧・編集・チェックリスト・完了履歴カレンダー）
+  screens/                      画面（一覧・編集・チェックリスト）
   utils/                        日付キー・スケジュール表示・アイコン一覧のフォーマッタ/定数
 ```
 

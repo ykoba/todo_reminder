@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todo_reminder/data/checklist_repository.dart';
 import 'package:todo_reminder/data/todo_set_repository.dart';
 import 'package:todo_reminder/models/todo_set.dart';
-import 'package:todo_reminder/screens/checklist_history_screen.dart';
 import 'package:todo_reminder/screens/checklist_screen.dart';
+import 'package:todo_reminder/screens/todo_set_edit_screen.dart';
 import 'package:todo_reminder/utils/date_key.dart';
 
 import '../support/fixtures.dart';
@@ -101,7 +101,7 @@ void main() {
   });
 
   testWidgets(
-    'shows the completed banner and undo button when already completed',
+    'shows the completed banner with an inline undo link when already completed',
     (tester) async {
       final set = await seedTodoSet(tester);
       await tester.runAsync(() async {
@@ -112,12 +112,11 @@ void main() {
       await pumpChecklist(tester, set.id);
 
       expect(find.text('本日は完了しました'), findsOneWidget);
-      expect(find.text('完了を取り消す'), findsOneWidget);
-      expect(find.text('完了する'), findsNothing);
+      expect(find.text('取り消す'), findsOneWidget);
     },
   );
 
-  testWidgets('shows no banner and the complete button when not completed', (
+  testWidgets('shows no completed banner when not completed', (
     tester,
   ) async {
     final set = await seedTodoSet(tester);
@@ -125,8 +124,7 @@ void main() {
     await pumpChecklist(tester, set.id);
 
     expect(find.text('本日は完了しました'), findsNothing);
-    expect(find.text('完了する'), findsOneWidget);
-    expect(find.text('完了を取り消す'), findsNothing);
+    expect(find.text('取り消す'), findsNothing);
   });
 
   testWidgets(
@@ -141,16 +139,17 @@ void main() {
     },
   );
 
-  testWidgets('tapping the calendar icon opens the completion history screen', (
+  testWidgets('tapping the edit icon opens the edit screen for this set', (
     tester,
   ) async {
     final set = await seedTodoSet(tester);
 
     await pumpChecklist(tester, set.id);
-    await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+    await tester.tap(find.byIcon(Icons.edit_outlined));
     await settle(tester);
 
-    expect(find.byType(ChecklistHistoryScreen), findsOneWidget);
+    expect(find.byType(TodoSetEditScreen), findsOneWidget);
+    expect(find.text('セットを編集'), findsOneWidget);
   });
 
   testWidgets('shows a memo field pre-filled with the day\'s saved memo', (
@@ -168,27 +167,46 @@ void main() {
     expect(find.text('メモ'), findsOneWidget);
   });
 
-  testWidgets('offers a button to check every item at once', (tester) async {
-    final set = await seedTodoSet(tester);
+  testWidgets(
+    'shows an unchecked "すべてチェック" control at the top of the list',
+    (tester) async {
+      final set = await seedTodoSet(tester);
 
-    await pumpChecklist(tester, set.id);
+      await pumpChecklist(tester, set.id);
 
-    final button = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.done_all),
-    );
-    expect(button.onPressed, isNotNull);
-  });
+      final selectAll = tester.widget<CheckboxListTile>(
+        find.widgetWithText(CheckboxListTile, 'すべてチェック'),
+      );
+      expect(selectAll.value, isFalse);
+    },
+  );
 
-  testWidgets('disables the check-all button when there are no items', (
-    tester,
-  ) async {
-    final set = await seedTodoSet(tester, itemLabels: const []);
+  testWidgets(
+    '"すべてチェック" is checked once every item is already checked',
+    (tester) async {
+      final set = await seedTodoSet(tester, itemLabels: const ['連絡帳']);
+      await tester.runAsync(() async {
+        final checklist = ChecklistRepository().getOrCreate(set, todayKey());
+        await ChecklistRepository().toggleItem(checklist, set.items.first.id);
+      });
 
-    await pumpChecklist(tester, set.id);
+      await pumpChecklist(tester, set.id);
 
-    final button = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.done_all),
-    );
-    expect(button.onPressed, isNull);
-  });
+      final selectAll = tester.widget<CheckboxListTile>(
+        find.widgetWithText(CheckboxListTile, 'すべてチェック'),
+      );
+      expect(selectAll.value, isTrue);
+    },
+  );
+
+  testWidgets(
+    'does not show the "すべてチェック" control when there are no items',
+    (tester) async {
+      final set = await seedTodoSet(tester, itemLabels: const []);
+
+      await pumpChecklist(tester, set.id);
+
+      expect(find.text('すべてチェック'), findsNothing);
+    },
+  );
 }

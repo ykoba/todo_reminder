@@ -39,15 +39,6 @@ class ChecklistRepository {
   DailyChecklist? get(String todoSetId, String dateKey) =>
       _box.get(_key(todoSetId, dateKey));
 
-  /// All recorded checklists for [todoSetId], keyed by their `dateKey`. Used
-  /// to render completion history (e.g. a calendar view).
-  Map<String, DailyChecklist> getAllForTodoSet(String todoSetId) {
-    return {
-      for (final checklist in _box.values)
-        if (checklist.todoSetId == todoSetId) checklist.dateKey: checklist,
-    };
-  }
-
   /// Every recorded checklist, across every TodoSet. Used to build a full
   /// local backup (see `BackupService`).
   List<DailyChecklist> getAll() => _box.values.toList();

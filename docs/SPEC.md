@@ -22,21 +22,28 @@
 - 一覧画面でTodoセットを作成・編集・削除できる。一覧の各行は名前・アイコン・通知スケジュール
   概要のみを表示するシンプルな見た目で、日付ヘッダー・完了チェックマーク・持ち物数・
   有効/無効スイッチは表示しない（詳細は 8.2 `TodoSetListScreen`）。
-- 一覧画面のAppBarにある並び替えボタンから並び替えモードに切り替え、Todoセットをドラッグして
-  表示順を変更できる（`sortOrder` に永続化）。通常時は誤操作を避けるためドラッグハンドルは
-  非表示で、並び替えモード中のみ表示される。「完了」ボタンで通常表示に戻る。
-- 一覧画面のAppBarにある編集ボタンから編集モードに切り替えると、各行に編集アイコンが現れ、
-  行そのものをタップしても編集画面が開くようになる（通常モードでは行タップでチェックリスト
-  画面が開く）。「完了」ボタンで通常表示に戻る。
+- 各行の右端には常にドラッグハンドルが表示され、モード切り替えなしにいつでもドラッグして
+  表示順を変更できる（`sortOrder` に永続化）。
+- 行タップでそのセットのチェックリスト画面が開く。編集は一覧画面ではなく、チェックリスト画面の
+  AppBarにある編集アイコンから行う（詳細は 8.5 `ChecklistScreen`）。
+- 一覧の行を横（右から左）にスワイプすると、右側に赤いゴミ箱アイコンのボタンが現れる。
+  スワイプしただけでは削除されず、そのボタンをタップして初めて削除される（確認ダイアログは
+  なし）。削除すると同時に該当セットの予約通知もすべて解除される。削除直後は
+  「「{セット名}」を削除しました」というSnackBar（表示時間3秒）が「元に戻す」アクション付きで
+  表示され、タップすると同じ内容でセットを復元し、通知も再度予約する。
 - 1セットは「名前」「アイコン」「持ち物リスト（並び替え可）」「通知時刻」「通知する曜日（複数選択）」
   「通知の有効/無効」を持つ。有効/無効はセット編集画面でのみ切り替える。
 - 名前は最大20文字（半角・全角を区別せず文字数でカウント）。空文字では保存不可。
 - アイコンは、モダンなアウトライン様式のMaterialアイコン20種類（学校・家・買い物・掃除・薬など、
   Todoの用途を想起させるもの）から選択する。未選択時（新規作成直後、または追加前に保存された
   既存データ）は「チェックリスト」アイコンが既定値となる。一覧画面の各行に丸いバッジとして表示される。
+- 持ち物リストの「持ち物を追加」ボタンで新しい行を追加すると、追加された行の入力欄に自動的に
+  フォーカスが移る。その状態で改行（キーボードの「次へ」）を入力すると、即座にもう1件
+  空の行が追加され、そちらにフォーカスが移る — 複数件を続けて素早く入力できる。
 - 持ち物のうち、ラベルが空のものは保存時に除外される。除外した結果、持ち物が1件も残らない場合は
   保存できない（最低1件の持ち物が必須）。
-- 削除時は確認ダイアログを表示し、削除と同時に該当セットの予約通知もすべて解除する。
+- セット編集画面の削除アイコンからの削除時は確認ダイアログを表示し、削除と同時に該当セットの
+  予約通知もすべて解除する（一覧画面のスワイプ削除とは別の導線。上記参照）。
 
 ### 3.2 通知
 - Todoセットごとに、選択された曜日の数だけ「毎週同じ曜日・同じ時刻」の繰り返し通知を予約する。
@@ -61,16 +68,16 @@
   外すと、自動的に完了が取り消される（チェック状態自体はそのまま、`completedAt` のみ
   クリアされる）。
 - チェック済み件数 / 全件数と進捗バーを画面上部に表示する。
-- AppBarの「すべてチェック」ボタンで、全持ち物を一括でチェック済みにできる（併せて完了状態にもなる）。
-  持ち物が0件の場合は無効化される。
-- 「完了する」ボタンで当日のチェックリストを完了状態にできる。全持ち物のチェックは完了の必須条件では
-  ない（チェック漏れがあっても、ユーザーの判断で完了にできる）。完了後は「完了を取り消す」ボタンで
-  取り消せる。取り消すと、完了状態の解除と同時に全持ち物のチェックも外れる
-  （チェック済みのまま「未完了」に見える状態を避けるため）。
+- 持ち物リストの一番上に太字の「すべてチェック」チェックボックス行がある。全持ち物が
+  チェック済みかどうかを反映し、タップすると一括で全チェック（＋完了状態に）／全解除
+  （＋完了状態も解除）を切り替えられる。持ち物が0件の場合はこの行自体を表示しない。
+- 完了状態になると「本日は完了しました」というバナーが表示され、その右側の「取り消す」
+  リンクをタップすると完了状態を取り消せる。取り消すと、完了状態の解除と同時に全持ち物の
+  チェックも外れる（チェック済みのまま「未完了」に見える状態を避けるため）。手動で完了に
+  する独立したボタンはなく、完了になる唯一の手段は全持ち物をチェックすること（個別の
+  チェックボックス、または「すべてチェック」行のいずれか）。
 - チェックリスト画面には、その日の自由記述メモ欄（ラベル「メモ」）があり、入力するたびに
   即座に保存される。
-- チェックリスト画面から、そのセットの過去の完了状況を月カレンダーで確認できる
-  （詳細は 8.6 `ChecklistHistoryScreen`）。
 
 ### 3.4 データの独立性
 - Todoセットの持ち物編集は、過去に記録済みの `DailyChecklist`（各日のチェック状態）に影響しない。
@@ -157,9 +164,8 @@
   作成して保存する。`toggleItem` / `setCompleted` / `setAllChecked` / `setMemo` は即座に
   該当レコードを保存する。`setAllChecked(checklist, itemIds, checked)` は `checked: true` なら
   `itemIds` すべてをチェック済みに、`false` なら（`itemIds` を無視して）全チェックを解除する。
-  `getAllForTodoSet(todoSetId)` は指定セットの全期間分の `DailyChecklist` を返す
-  （完了履歴カレンダーで使用）。`getAll()` は全セット分の `DailyChecklist` を返す
-  （バックアップ書き出し用）。`replaceAll(checklists)` は `TodoSetRepository.replaceAll` と同様、
+  `getAll()` は全セット分の `DailyChecklist` を返す（バックアップ書き出し用）。
+  `replaceAll(checklists)` は `TodoSetRepository.replaceAll` と同様、
   ボックスの中身をすべて置き換える。
 - `backup_service.dart` (`BackupService`): 全TodoSet・全DailyChecklistを1つのJSONドキュメントに
   書き出す/読み込む。本アプリはサーバーを持たないため、機種変更・再インストール時にデータを
@@ -190,9 +196,6 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
 - `dailyChecklistProvider(ChecklistKey(todoSetId, dateKey))`: 指定セット・指定日の
   `DailyChecklist` を `Stream<DailyChecklist?>` として公開。`daily_checklists` ボックスの
   変更を監視。呼び出し前に `ChecklistRepository.getOrCreate` でレコードが存在している必要がある。
-- `checklistHistoryProvider(todoSetId)`: 指定セットの全 `DailyChecklist` を
-  `Stream<Map<String, DailyChecklist>>`（キーは `dateKey`）として公開。
-  `ChecklistHistoryScreen` のカレンダー表示に使用。
 - `todoSetRepositoryProvider` / `checklistRepositoryProvider` / `notificationServiceProvider` /
   `backupServiceProvider`: 各サービス・リポジトリのシングルトン提供。
 - `themeModeProvider`（`lib/providers/theme_providers.dart`）: ユーザーが選択した表示テーマ
@@ -200,7 +203,7 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
   キー `themeMode` にインデックス値として永続化し、アプリ再起動後も選択が復元される。
 - `onboardingProvider`（`lib/providers/onboarding_providers.dart`）: 初回オンボーディングを
   完了済みかどうか（`bool`）を保持する `NotifierProvider`。`settings` ボックスのキー
-  `hasSeenOnboarding` に永続化する。詳細は 8.8 `OnboardingScreen`。
+  `hasSeenOnboarding` に永続化する。詳細は 8.7 `OnboardingScreen`。
 
 ## 7. 通知実装 (`lib/notifications/notification_service.dart`)
 
@@ -256,54 +259,48 @@ Riverpodの `StreamProvider` でHiveボックスの変更を監視し、CRUD操�
 
 ```
 TodoSetListScreen（一覧・起点）
-  ├─ [+]（通常モードのみ） → TodoSetEditScreen(todoSetId: null)       … 新規作成
-  ├─ [設定アイコン]（通常モードのみ） → SettingsScreen
+  ├─ [+] → TodoSetEditScreen(todoSetId: null)                        … 新規作成
+  ├─ [設定アイコン] → SettingsScreen
   │    ├─ [このアプリについて] → AboutScreen
   │    ├─ [プライバシーポリシー] → PrivacyPolicyScreen
   │    ├─ [表示テーマ] → テーマ選択ボトムシート（端末の設定に従う/ライト/ダーク）
   │    └─ [バックアップ] → バックアップ操作ボトムシート（作成/復元）
-  ├─ 編集モード中: [行タップ] / [編集アイコン] → TodoSetEditScreen(todoSetId: id) … 編集
-  └─ 通常モード中: [行タップ] / 通知タップ → ChecklistScreen(todoSetId: id)
-                                  └─ [カレンダーアイコン] → ChecklistHistoryScreen(todoSetId: id)
+  └─ [行タップ] / 通知タップ → ChecklistScreen(todoSetId: id)
+                       └─ [編集アイコン] → TodoSetEditScreen(todoSetId: id) … 編集
 ```
 
 ### 8.2 `TodoSetListScreen`
 - `todoSetListProvider` を購読し、Todoセットが0件なら空状態のイラスト（アイコンを重ねた
-  丸いバッジ・見出し・案内文）を表示し、それ以外は `ListTile` のリストを表示。画面には
-  「通常」「並び替え」「編集」の3モードがあり、通常モードのみで行ウィジェットが異なる。
-  3モードは同時に併用できず、AppBarの「完了」ボタンで通常モードに戻る。
-- **通常モード**（起動時の既定）: 各行に「セットのアイコン（丸いバッジ）」「名前」
-  「スケジュール概要」のみを表示する（完了チェックマーク・持ち物数・有効/無効スイッチは
-  表示しない）。行タップでチェックリスト画面へ。右下に、並び替え用・編集用の小さいFABと
-  新規作成用の通常サイズFAB（`+`）を縦に並べて表示する（詳細は下記）。新規セットは常に
-  一覧の末尾に追加される（`sortOrder` = 作成時点のセット数）。
-- **並び替えモード**: 右下の並び替えFABをタップすると切り替わる。誤操作を防ぐため、
-  各行はアイコン・名前・ドラッグハンドルのみの簡略表示になり、行タップでの画面遷移・FABは
-  表示されない。ドラッグハンドルを掴んで並び替えると `TodoSetRepository.reorder` により
-  表示順が即座に永続化される。
-- **編集モード**: 右下の編集FABをタップすると切り替わる。各行の右端に編集アイコンが
-  現れ、そのアイコンをタップしても、行そのものをタップしても
-  `TodoSetEditScreen(todoSetId: id)` が開く。FAB群・AppBarの設定アイコンは表示されない。
-- 並び替え・編集モードは、AppBarの「完了」ボタンで通常モードに戻る。
-- 右下のFAB群（通常モードのみ表示）: 上から「並び替え」「編集」（いずれも
-  `FloatingActionButton.small`）、一番下に新規作成用の通常サイズ `FloatingActionButton`
-  （`+`）。並び替え・編集はリスト操作の頻度が低い補助アクションのため、画面の主動線である
-  新規作成ボタンより小さいサイズで、その直上にまとめて配置している。
-- AppBarには固定の歯車アイコン（`Icons.settings_outlined`。通常モードのみ表示）のみを置き、
-  タップすると `SettingsScreen` へ遷移する。以前はこのアイコン自体が現在のテーマに応じて
-  表示を変え、テーマ・バックアップ・プライバシーポリシー・このアプリについてをすべて1つの
-  オーバーフローメニューに並べていたが、リスト操作と無関係な項目が並ぶうえアイコンの意味が
-  分かりにくかったため、一般的な「設定は専用画面」というパターンに合わせて分離した
-  （詳細は 8.3）。
+  丸いバッジ・見出し・案内文）を表示し、それ以外は常に `ReorderableListView` でリストを
+  表示する。モード切り替えは一切なく、常に同じ見た目・操作性で並び替え・削除・閲覧ができる。
+- 各行は「セットのアイコン（丸いバッジ）」「名前」「スケジュール概要」「右端のドラッグ
+  ハンドル」を表示する（完了チェックマーク・持ち物数・有効/無効スイッチは表示しない）。
+  行タップで `ChecklistScreen(todoSetId: id)` へ遷移する（編集はこの画面では行わない。
+  詳細は 8.5）。
+- 右端のドラッグハンドル（`ReorderableDragStartListener` でラップした
+  `Icons.drag_handle`）を掴むといつでも並び替えられ、`TodoSetRepository.reorder` により
+  表示順が即座に永続化される。新規セットは常に一覧の末尾に追加される
+  （`sortOrder` = 作成時点のセット数）。
+- 各行は `flutter_slidable` パッケージの `Slidable`（`endActionPane`、右から左への
+  スワイプのみ）でラップされており、スワイプすると右側に赤いゴミ箱アイコンの
+  `SlidableAction` ボタンが現れる。スワイプ自体では削除されず、そのボタンをタップして初めて
+  （確認ダイアログなしで）削除される。削除時は先に `NotificationService.cancelForTodoSet` で
+  予約通知を解除してから `TodoSetRepository.delete` を呼ぶ。削除直後に
+  `ScaffoldMessenger` の `SnackBar`（「「{セット名}」を削除しました」＋「元に戻す」アクション、
+  表示時間3秒）を表示し、「元に戻す」をタップすると同じ `TodoSet` を `save` で復元し、
+  `scheduleForTodoSet` で通知も再予約する。
+- AppBarには固定の歯車アイコン（`Icons.settings_outlined`）のみを置き、タップすると
+  `SettingsScreen` へ遷移する。
+- 右下には新規作成用の `FloatingActionButton`（`+`）のみを表示する。
 
 ### 8.3 `SettingsScreen`
-- `TodoSetListScreen`（通常モード）のAppBarにある設定アイコンから遷移する、アプリ全体の
+- `TodoSetListScreen` のAppBarにある設定アイコンから遷移する、アプリ全体の
   設定・情報をまとめた画面。上から「このアプリについて」「プライバシーポリシー」
   「表示テーマ」「バックアップ」の順に `ListTile` を並べる（利用頻度ではなく、アプリの
   素性を知る／変更しない情報から、実際に挙動を変える設定という順）。
-- 「このアプリについて」: `AboutScreen` へ遷移する（詳細は 8.9）。ダイアログではなく、
+- 「このアプリについて」: `AboutScreen` へ遷移する（詳細は 8.8）。ダイアログではなく、
   プライバシーポリシーと同じ画面遷移形式で表示する。
-- 「プライバシーポリシー」: `PrivacyPolicyScreen` へ遷移する（詳細は 8.7）。
+- 「プライバシーポリシー」: `PrivacyPolicyScreen` へ遷移する（詳細は 8.6）。
 - 「表示テーマ」: 現在の設定（「端末の設定に従う」「ライト」「ダーク」）をsubtitleに表示し、
   タップするとその3択のボトムシートが開く。選択すると `themeModeProvider` を通じて即時に
   アプリ全体へ反映され、Hiveに永続化される。
@@ -323,6 +320,12 @@ TodoSetListScreen（一覧・起点）
   強調表示される）、通知時刻（`showTimePicker`）、通知曜日（`FilterChip` の複数選択）、
   通知の有効/無効（`SwitchListTile`）、持ち物リスト（`ReorderableListView` でドラッグ並び替え・
   追加・削除）。
+- 「持ち物を追加」で新しい行を追加すると、その行の `TextField`（専用の `FocusNode` を保持）に
+  自動的にフォーカスが移る（`WidgetsBinding.instance.addPostFrameCallback` で、行が実際に
+  ツリーに追加された次のフレームでリクエストする）。各行の `TextField` は
+  `textInputAction: TextInputAction.next` を指定しており、入力中に改行（キーボードの
+  「次へ」）を押すと同じ追加処理が呼ばれ、もう1件の空行が追加されてそちらにフォーカスが
+  移る — 複数件を連続してキーボードから離さずに入力できる。
 - 保存時にバリデーション（名前必須、ラベルが空でない持ち物が1件以上必須）を行い、
   `TodoSetRepository.save` → `NotificationService.scheduleForTodoSet` の順で実行してから
   画面を閉じる。
@@ -330,47 +333,38 @@ TodoSetListScreen（一覧・起点）
 
 ### 8.5 `ChecklistScreen`
 - 初期化時に当日分の `DailyChecklist` を `getOrCreate` する。
-- タイトルにセット名と `M/d（曜）` 形式の日本語日付を表示。AppBarに「すべてチェック」
-  ボタン（`Icons.done_all`。全持ち物を一括チェックし完了状態にする。持ち物が0件なら無効化）と
-  カレンダーアイコン（`ChecklistHistoryScreen(todoSetId: ...)` へ遷移）を表示。
+- タイトルにセット名と `M/d（曜）` 形式の日本語日付を表示。AppBarには編集アイコン
+  （`TodoSetEditScreen(todoSetId: ...)` へ遷移）のみを表示する。
 - チェック済み件数と進捗バーを表示。進捗バーは値が変わるたびに `TweenAnimationBuilder` で
   滑らかに（300ms）アニメーションする。
 - 完了済みの場合は「本日は完了しました」というバナーを `AnimatedSize` でアニメーションしながら
-  表示・非表示する。
+  表示・非表示する。バナーの右側には「取り消す」という `TextButton` があり、タップすると
+  完了状態の解除と同時に全持ち物のチェックも解除する
+  （`setCompleted(false)` と `setAllChecked(..., false)` を両方呼ぶ）。
+- 持ち物が1件以上ある場合、リストの一番上に太字の「すべてチェック」`CheckboxListTile` を
+  表示する。値は「全持ち物がチェック済みかどうか」を反映し、タップで一括チェック
+  （＋完了状態にする）／一括解除（＋完了状態も解除する）を切り替える。
 - 各持ち物を `CheckboxListTile` で表示し、タップで即座にトグル・保存。全持ち物がチェック済みに
   なった時点で自動的に完了状態にする。
 - 持ち物リストの下に、その日のメモを入力する `TextFormField`（ラベル「メモ」、3行）を表示。
-  入力するたびに `ChecklistRepository.setMemo` で即座に保存する。
-- 画面下部に「完了する」/「完了を取り消す」ボタン（完了状態に応じて切り替え）。
-  「完了を取り消す」は完了状態の解除と同時に全持ち物のチェックも解除する
-  （`setCompleted(false)` と `setAllChecked(..., false)` を両方呼ぶ）。
-- **完了時の演出**: チェック状態が未完了→完了へ遷移した瞬間（チェックで全部揃った時、
-  「すべてチェック」ボタン、「完了する」ボタンのいずれでも）、紙吹雪の演出と中央にバウンドする
-  チェックマークを1.4秒間表示し、あわせて軽いハプティックフィードバック
-  （`HapticFeedback.mediumImpact()`）を発生させる。紙吹雪・チェックマークともに
-  `AnimationController` と `CustomPainter` による自作の実装で、外部パッケージには依存しない。
-  完了→未完了の遷移（チェックを外す、「完了を取り消す」）では演出しない。
+  入力するたびに `ChecklistRepository.setMemo` で即座に保存する。画面には他にボタン類はない
+  — 完了になる唯一の手段は全持ち物をチェックすることで、手動で完了にする独立したボタンは
+  存在しない。
+- **完了時の演出**: チェック状態が未完了→完了へ遷移した瞬間（個別のチェックボックス、または
+  「すべてチェック」行のいずれでも）、紙吹雪の演出と中央にバウンドするチェックマークを
+  1.4秒間表示し、あわせて軽いハプティックフィードバック（`HapticFeedback.mediumImpact()`）を
+  発生させる。紙吹雪・チェックマークともに `AnimationController` と `CustomPainter` による
+  自作の実装で、外部パッケージには依存しない。完了→未完了の遷移（チェックを外す、バナーの
+  「取り消す」）では演出しない。
 
-### 8.6 `ChecklistHistoryScreen`
-- 対象Todoセットの完了履歴を月単位のカレンダーで表示する。`checklistHistoryProvider(todoSetId)`
-  （`ChecklistRepository.getAllForTodoSet` を `dateKey` でMap化したもの）を購読。
-- 各日を丸いセルで表示し、完了済み（`isCompleted`）の日は緑色、記録はあるが未完了の日は
-  グレー、今日は枠線で強調する。未来の日付はタップ不可（薄いグレー表示）。
-- 上部の「<」「>」で表示月を移動できる（未来の月へは移動不可）。
-- 日付セルをタップすると、その日の状態（記録なし／未完了／完了）とチェック件数を
-  `SnackBar`（表示時間2秒）で表示する。表示中に別の日をタップした場合は、残り時間を待たず
-  直前の `SnackBar` を即座に閉じて新しい内容をすぐに表示する
-  （`ScaffoldMessenger.clearSnackBars()` の後に `showSnackBar` を呼ぶ）。
-- 下部に凡例（緑=完了、グレー=記録あり・未完了）を表示する。
-
-### 8.7 `PrivacyPolicyScreen`
+### 8.6 `PrivacyPolicyScreen`
 - `SettingsScreen` の「プライバシーポリシー」から遷移する。
 - 静的なプライバシーポリシー本文を `SingleChildScrollView` でスクロール表示するだけの画面。
   本アプリはサーバー通信を一切行わない（データはすべて端末内のHiveに保存）ことと、通知関連の
   権限の用途、第三者への提供がないことなどを説明する。本文は `lib/screens/privacy_policy_screen.dart`
   内の定数として保持しており、外部通信や外部ファイルの読み込みは行わない。
 
-### 8.8 `OnboardingScreen`
+### 8.7 `OnboardingScreen`
 - アプリのルートウィジェット（`lib/app.dart` の `_AppHome`）が `onboardingProvider`
   （`lib/providers/onboarding_providers.dart`。`settings` ボックスのキー
   `hasSeenOnboarding` に永続化）を購読し、まだ完了していなければ `TodoSetListScreen` の
@@ -386,13 +380,17 @@ TodoSetListScreen（一覧・起点）
   `_AppHome` という固定のウィジェット自身が内部で表示を切り替える設計。`MaterialApp.home`
   は初回ルート生成時にしか参照されないため、後から値を変えても既存のルートには反映されない）。
 
-### 8.9 `AboutScreen`
+### 8.8 `AboutScreen`
 - `SettingsScreen` の「このアプリについて」から遷移する。以前はFlutter標準の
   `showAboutDialog`（ダイアログ）を使っていたが、プライバシーポリシーと挙動を揃えるため、
   画面遷移形式に変更した。
-- アプリ名・`package_info_plus` で取得したバージョン番号・アプリの概要説明・著作権表示を
-  `SingleChildScrollView` で表示する静的な画面。`PackageInfo.fromPlatform()` は非同期のため
-  `FutureBuilder` で待ち、取得できるまでバージョン行は表示しない。
+- `SingleChildScrollView` で表示する静的な画面。アプリ名・アイコン・
+  `package_info_plus` で取得したバージョン番号（`PackageInfo.fromPlatform()` は非同期のため
+  `FutureBuilder` で待ち、取得できるまでバージョン行は表示しない）に続けて、
+  訴求力のある一言キャッチコピーと紹介文、主な機能を1項目ずつアイコン付きで説明する
+  「主な機能」リスト、サーバー通信を行わない旨を強調するプライバシー訴求ブロック、
+  末尾に著作権表示を並べる。ユーザーがアプリの価値と使い方を把握できることを主眼にした、
+  単なるバージョン表示以上の内容を持つ。
 
 ## 9. レビュー依頼 (`lib/data/usage_tracker.dart`, `lib/data/review_prompt_service.dart`)
 

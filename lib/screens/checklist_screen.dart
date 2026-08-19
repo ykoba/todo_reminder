@@ -11,17 +11,17 @@ import '../providers/repository_providers.dart';
 import '../providers/todo_set_providers.dart';
 import '../utils/date_key.dart';
 import '../utils/schedule_format.dart';
-import 'checklist_history_screen.dart';
+import 'todo_set_edit_screen.dart';
 
 /// Opened either from a notification tap or from the TodoSet list. Shows
 /// today's checklist for one TodoSet; checking items saves immediately.
-/// Checking every item automatically marks the day completed; a "完了"
-/// button also lets the user mark it done with items left unchecked.
-/// Unchecking any item while already completed automatically un-completes
-/// it — "done" shouldn't be able to silently drift out of sync with what's
-/// actually checked. "完了を取り消す" goes further: it clears the completed
-/// state *and* every item's checked state, so the day starts fresh rather
-/// than being left "completed-looking" with checks still in place.
+/// Checking every item (or the "すべてチェック" control) automatically marks
+/// the day completed. Unchecking any item while already completed
+/// automatically un-completes it — "done" shouldn't be able to silently
+/// drift out of sync with what's actually checked. The completed banner's
+/// "取り消す" link goes further: it clears the completed state *and* every
+/// item's checked state, so the day starts fresh rather than being left
+/// "completed-looking" with checks still in place.
 class ChecklistScreen extends ConsumerStatefulWidget {
   const ChecklistScreen({super.key, required this.todoSetId});
 
@@ -48,6 +48,18 @@ class _ChecklistScreenState extends ConsumerState<ChecklistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The set can be deleted out from under this screen — most commonly via
+    // the delete icon on TodoSetEditScreen (reached from this screen's own
+    // edit icon), which pops back to here once done. Without this listener,
+    // that leaves the `todoSet == null` branch below showing a spinner
+    // forever, since that branch was only ever meant for the brief moment
+    // before the initial load resolves, not for "gone for good."
+    ref.listen<TodoSet?>(todoSetProvider(widget.todoSetId), (previous, next) {
+      if (previous != null && next == null && context.mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+
     final todoSet = ref.watch(todoSetProvider(widget.todoSetId));
     if (todoSet == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -91,6 +103,7 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
   late final AnimationController _celebrationController;
   late final List<_ConfettiParticle> _confetti;
   late bool _wasCompleted;
+  bool _isNavigatingToEdit = false;
 
   @override
   void initState() {
@@ -108,9 +121,9 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
     super.didUpdateWidget(oldWidget);
     final isCompletedNow = widget.checklist.isCompleted;
     if (!_wasCompleted && isCompletedNow) {
-      // Newly completed (via checking the last item, "すべてチェック", or
-      // "完了する") — celebrate the moment rather than just silently
-      // flipping a flag.
+      // Newly completed (via checking the last item, or the "すべてチェック"
+      // control) — celebrate the moment rather than just silently flipping
+      // a flag.
       HapticFeedback.mediumImpact();
       _celebrationController.forward(from: 0);
     }
@@ -148,27 +161,20 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.done_all),
-            tooltip: 'すべてチェック',
-            onPressed: items.isEmpty
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: '編集',
+            onPressed: _isNavigatingToEdit
                 ? null
                 : () async {
-                    await repo.setAllChecked(
-                      checklist,
-                      items.map((item) => item.id).toList(),
-                      true,
+                    setState(() => _isNavigatingToEdit = true);
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            TodoSetEditScreen(todoSetId: todoSet.id),
+                      ),
                     );
-                    await repo.setCompleted(checklist, true);
+                    if (mounted) setState(() => _isNavigatingToEdit = false);
                   },
-          ),
-          IconButton(
-            icon: const Icon(Icons.calendar_month_outlined),
-            tooltip: '完了履歴',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ChecklistHistoryScreen(todoSetId: todoSet.id),
-              ),
-            ),
           ),
         ],
       ),
@@ -204,17 +210,43 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
                   child: Container(
                     width: double.infinity,
                     color: Colors.green.withValues(alpha: 0.12),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    padding: const EdgeInsets.only(left: 16, right: 4),
+                    child: Row(
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('本日は完了しました'),
+                        const Icon(Icons.check_circle, color: Colors.green),
+                        const SizedBox(width: 8),
+                        const Expanded(child: Text('本日は完了しました')),
+                        TextButton(
+                          onPressed: () async {
+                            await repo.setCompleted(checklist, false);
+                            await repo.setAllChecked(
+                              checklist,
+                              items.map((item) => item.id).toList(),
+                              false,
+                            );
+                          },
+                          child: const Text('取り消す'),
+                        ),
                       ],
                     ),
                   ),
                 ),
+              if (items.isNotEmpty) ...[
+                CheckboxListTile(
+                  value: checkedCount == items.length,
+                  onChanged: (value) async {
+                    final allIds = items.map((item) => item.id).toList();
+                    await repo.setAllChecked(checklist, allIds, value ?? false);
+                    await repo.setCompleted(checklist, value ?? false);
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text(
+                    'すべてチェック',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const Divider(height: 1),
+              ],
               Expanded(
                 child: items.isEmpty
                     ? const Center(child: Text('持ち物がありません'))
@@ -245,8 +277,9 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
                         },
                       ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: TextFormField(
                   initialValue: checklist.memo,
                   decoration: const InputDecoration(
@@ -255,28 +288,6 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
                   ),
                   maxLines: 3,
                   onChanged: (value) => repo.setMemo(checklist, value),
-                ),
-              ),
-              SafeArea(
-                minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: checklist.isCompleted
-                      ? OutlinedButton(
-                          onPressed: () async {
-                            await repo.setCompleted(checklist, false);
-                            await repo.setAllChecked(
-                              checklist,
-                              items.map((item) => item.id).toList(),
-                              false,
-                            );
-                          },
-                          child: const Text('完了を取り消す'),
-                        )
-                      : FilledButton(
-                          onPressed: () => repo.setCompleted(checklist, true),
-                          child: const Text('完了する'),
-                        ),
                 ),
               ),
             ],
