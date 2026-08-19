@@ -103,6 +103,21 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
     });
   }
 
+  /// Submitting a row's field (tapping the keyboard's return key) reuses the
+  /// topmost still-empty row instead of always appending a new one — if the
+  /// user left earlier rows blank, filling those in first is what they
+  /// almost always want. A new row is only appended once every existing row
+  /// already has text.
+  void _focusEmptyItemOrAdd() {
+    for (final item in _items) {
+      if (item.controller.text.trim().isEmpty) {
+        item.focusNode.requestFocus();
+        return;
+      }
+    }
+    _addItem();
+  }
+
   void _removeItem(int index) {
     setState(() => _items.removeAt(index).dispose());
   }
@@ -407,7 +422,7 @@ class _TodoSetEditScreenState extends ConsumerState<TodoSetEditScreen> {
                                   hintText: '例: ハンカチ',
                                 ),
                                 textInputAction: TextInputAction.next,
-                                onSubmitted: (_) => _addItem(),
+                                onSubmitted: (_) => _focusEmptyItemOrAdd(),
                               ),
                             ),
                             IconButton(

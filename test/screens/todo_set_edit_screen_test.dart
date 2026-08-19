@@ -126,6 +126,69 @@ void main() {
       expect(find.byType(TextField), findsNWidgets(2));
     });
 
+    testWidgets(
+      'submitting a row focuses the topmost still-blank row instead of '
+      'always adding a new one',
+      (tester) async {
+        await pumpEdit(tester);
+        await tester.enterText(find.byType(TextField).first, 'テストセット');
+
+        await tester.tap(find.text('持ち物を追加'));
+        await settle(tester);
+        await tester.tap(find.text('持ち物を追加'));
+        await settle(tester);
+        await tester.tap(find.text('持ち物を追加'));
+        await settle(tester);
+        expect(find.byType(TextField), findsNWidgets(4)); // name + 3 items
+
+        // Fill only the last item row, leaving the first two blank.
+        await tester.enterText(find.byType(TextField).at(3), '石鹸');
+        await settle(tester);
+
+        // Submitting from the last (filled) row should jump focus to the
+        // topmost blank row rather than appending a 4th row.
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await settle(tester);
+        expect(find.byType(TextField), findsNWidgets(4)); // unchanged
+
+        tester.testTextInput.enterText('シャンプー');
+        await settle(tester);
+        expect(
+          tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
+          'シャンプー',
+        );
+        // The second (still-blank) row is untouched.
+        expect(
+          tester.widget<TextField>(find.byType(TextField).at(2)).controller!.text,
+          isEmpty,
+        );
+      },
+    );
+
+    testWidgets(
+      'submitting a row adds a new one only once every row already has text',
+      (tester) async {
+        await pumpEdit(tester);
+        await tester.enterText(find.byType(TextField).first, 'テストセット');
+
+        await tester.tap(find.text('持ち物を追加'));
+        await settle(tester);
+        expect(find.byType(TextField), findsNWidgets(2)); // name + 1 item
+
+        await tester.enterText(find.byType(TextField).at(1), 'タオル');
+        await settle(tester);
+
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await settle(tester);
+
+        expect(find.byType(TextField), findsNWidgets(3)); // a new row appended
+        expect(
+          tester.widget<TextField>(find.byType(TextField).at(2)).controller!.text,
+          isEmpty,
+        );
+      },
+    );
+
     testWidgets('has no delete button', (tester) async {
       await pumpEdit(tester);
 
