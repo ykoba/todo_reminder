@@ -11,6 +11,7 @@ import '../providers/repository_providers.dart';
 import '../providers/todo_set_providers.dart';
 import '../utils/date_key.dart';
 import '../utils/schedule_format.dart';
+import '../widgets/keyboard_dismiss_bar.dart';
 import 'todo_set_edit_screen.dart';
 
 /// Opened either from a notification tap or from the TodoSet list. Shows
@@ -290,6 +291,10 @@ class _ChecklistBodyState extends ConsumerState<_ChecklistBody>
                   onChanged: (value) => repo.setMemo(checklist, value),
                 ),
               ),
+              if (MediaQuery.of(context).viewInsets.bottom > 0)
+                KeyboardDismissBar(
+                  onDismiss: () => FocusScope.of(context).unfocus(),
+                ),
             ],
           ),
           IgnorePointer(

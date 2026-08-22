@@ -58,7 +58,7 @@ void main() {
       },
     );
 
-    test('uses the set name as title, an encouraging set-name reference as body, and the set id as payload', () async {
+    test('has no title, a fixed encouraging body, and the set id as payload', () async {
       final set = buildTodoSet(
         name: '保育園',
         items: [
@@ -71,8 +71,8 @@ void main() {
       await NotificationService.instance.scheduleForTodoSet(set);
 
       final args = callsOf('zonedSchedule').single.arguments as Map;
-      expect(args['title'], '保育園');
-      expect(args['body'], '保育園の持ち物を確認しましょう！');
+      expect(args['title'], isNull);
+      expect(args['body'], '持ち物を確認しましょう！');
       expect(args['payload'], set.id);
     });
 

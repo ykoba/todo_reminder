@@ -138,7 +138,7 @@ class NotificationService {
       return;
     }
 
-    final body = '${todoSet.name}の持ち物を確認しましょう！';
+    const body = '持ち物を確認しましょう！';
     final details = _detailsFor(body);
 
     for (final weekday in schedule.repeatDays) {
@@ -148,7 +148,7 @@ class NotificationService {
         if (schedule.intervalWeeks <= 1) {
           await _plugin.zonedSchedule(
             _notificationId(todoSet.id, weekday, timeIndex, 0),
-            todoSet.name,
+            null,
             body,
             _nextInstanceOfWeekdayTime(weekday, time.hour, time.minute),
             details,
@@ -172,7 +172,7 @@ class NotificationService {
                 timeIndex,
                 occurrenceIndex,
               ),
-              todoSet.name,
+              null,
               body,
               occurrences[occurrenceIndex],
               details,
