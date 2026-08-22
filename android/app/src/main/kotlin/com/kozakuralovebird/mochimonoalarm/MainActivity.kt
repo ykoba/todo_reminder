@@ -1,4 +1,4 @@
-package com.example.todo_reminder
+package com.kozakuralovebird.mochimonoalarm
 
 import io.flutter.embedding.android.FlutterActivity
 
